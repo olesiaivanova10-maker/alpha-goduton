@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+backend/data/*.csv
+!backend/data/*.example.csv
