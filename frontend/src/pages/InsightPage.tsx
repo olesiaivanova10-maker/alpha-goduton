@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getFeed } from '../api/feed';
+import ChatPanel from '../components/ChatPanel';
 import type { EventCard } from '../types/feed';
 import OriginBadge from '../components/OriginBadge';
 
@@ -103,6 +104,7 @@ export default function InsightPage() {
       </section>
 
       <p className="muted small">{card.disclaimer}</p>
+      <ChatPanel card={card} />
     </>
   );
 }
