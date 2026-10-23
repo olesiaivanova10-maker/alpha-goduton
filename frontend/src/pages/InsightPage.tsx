@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getFeed } from '../api/feed';
 import ChatPanel from '../components/ChatPanel';
 import type { EventCard } from '../types/feed';
+import ActionBlock from '../components/ActionBlock';
 import OriginBadge from '../components/OriginBadge';
 
 export default function InsightPage() {
@@ -40,20 +41,7 @@ export default function InsightPage() {
         </div>
       </section>
 
-      <section className="card">
-        <h3>{q.q4_consequences.question}</h3>
-        <OriginBadge origin={q.q4_consequences.origin} />
-        <div className="two-cols">
-          <div>
-            <h4 className="risk">Риски</h4>
-            <ul>{q.q4_consequences.risks.map((r) => <li key={r}>{r}</li>)}</ul>
-          </div>
-          <div>
-            <h4 className="opp">Возможности</h4>
-            <ul>{q.q4_consequences.opportunities.map((o) => <li key={o}>{o}</li>)}</ul>
-          </div>
-        </div>
-      </section>
+      <ActionBlock card={card} />
 
       <section className="card">
         <h3>{q.q5_recommended_actions.question}</h3>
