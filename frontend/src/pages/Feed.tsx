@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFeed } from '../api/feed';
+import CompanyProfile from '../components/CompanyProfile';
 import type { NewsFeedResponse } from '../types/feed';
 
 type SortKey = 'critical' | 'relevance' | 'date';
 
 const SORT_LABELS: Record<SortKey, string> = {
-  critical: 'По критичности',
+  critical: 'Критичные сверху',
   relevance: 'По релевантности',
-  date: 'По дате',
+  date: 'Сначала новые',
 };
+
+const CLIENTS = [
+  { id: 'U_14366', label: 'Финансы (лизинг), Москва: U_14366' },
+  { id: 'U_26030', label: 'Топливная торговля, Уфа: U_26030' },
+];
 
 export default function Feed() {
   const [feed, setFeed] = useState<NewsFeedResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [companyId, setCompanyId] = useState(CLIENTS[0].id);
   const [sort, setSort] = useState<SortKey>('critical');
   const [onlyCritical, setOnlyCritical] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
@@ -70,6 +77,19 @@ export default function Feed() {
         {feed.critical_events_count}
       </p>
 
+      <label className="sort">
+        <span className="muted small">Клиент</span>
+        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          {CLIENTS.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <CompanyProfile companyId={companyId} />
+
       <section className="filters">
         <div className="filters-row">
           <label className="toggle">
@@ -121,9 +141,7 @@ export default function Feed() {
         </p>
       </section>
 
-      {visible.length === 0 && (
-        <p className="muted">По выбранным фильтрам событий нет.</p>
-      )}
+      {visible.length === 0 && <p className="muted">По выбранным фильтрам событий нет.</p>}
 
       {visible.map((ev) => (
         <Link key={ev.card_id} to={`/news/${ev.card_id}`} className="card event">
