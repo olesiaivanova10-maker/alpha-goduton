@@ -36,13 +36,3 @@ ai_engineer/
 
 ---
 
-## Как быстро проверить свои модули:
-
-1. **Проверка RAG-поиска:**
-   ```powershell
-   python ai_engineer/test_cases/test_rag.py
-   ```
-2. **Проверка сквозного цикла на кейсах:**
-   ```powershell
-   python -c "import sys; sys.path.insert(0, 'ai_engineer'); from orchestrator import AgentOrchestrator; print('OK')"
-   ```
