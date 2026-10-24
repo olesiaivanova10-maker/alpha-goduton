@@ -118,7 +118,7 @@ export default function CompanyProfile({ companyId }: { companyId: string }) {
         ))}
       </div>
 
-      {counterparties.length > 0 && (
+     {counterparties.length > 0 && (
         <>
           <p className="muted small">
             Контрагенты: {new Set(counterparties.map((c) => c.company_id)).size}, крупнейшие по
