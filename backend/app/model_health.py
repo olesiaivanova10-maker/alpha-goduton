@@ -29,7 +29,7 @@ def check_models(force=False, ttl=60):
                 try:
                     from openai import OpenAI
                     client = OpenAI(api_key=config.api_key, base_url=config.base_url, timeout=10, max_retries=0)
-                    response = client.chat.completions.create(model=name, messages=[{'role':'user','content':'Return JSON only: {"ok":true}'}], max_tokens=32)
+                    response = client.chat.completions.create(model=name, messages=[{'role':'user','content':'Return JSON only: {"ok":true}'}], max_tokens=256, response_format={"type":"json_object"})
                     payload = json.loads(response.choices[0].message.content)
                     result['status'] = 'ok' if payload.get('ok') is True else 'degraded'
                 except Exception as error:

@@ -19,11 +19,14 @@ from pydantic import BaseModel, Field
 
 class ModelName(str, Enum):
     """Идентификаторы утвержденных правилами хакатона моделей."""
-    GEMMA_4 = "gemma-4-26b-a4b"
-    QWEN_3_6 = "qwen-3.6-35b-a3b"
-    DEEPSEEK_V4_1 = "deepseek-v4.1-flash"
-    GLM_5_3 = "glm-5.3-flash"
+    GEMMA_4 = "google/gemma-4-26b-a4b-it"
+    QWEN_3_6 = "qwen/qwen3.6-35b-a3b"
+    DEEPSEEK_V4_1 = "deepseek/deepseek-v4.1-flash"
+    GLM_5_3 = "z-ai/glm-5.3-flash"
     
+    QWEN_VISION = "qwen/qwen3-vl-30b-a3b-instruct"
+    KIMI = "moonshotai/kimi-k2.6"
+
     # Вспомогательные локальные модели для эмбеддингов/реранкинга
     BGE_EMBEDDINGS = "BAAI/bge-m3"
     BGE_RERANKER = "BAAI/bge-reranker-large"
