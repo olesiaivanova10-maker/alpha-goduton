@@ -1,25 +1,13 @@
 <!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Альфа-Бизнес — Новости и инсайты</title>
-  <style>
-    :root{font-family:Inter,Arial,sans-serif;color:#202124;background:#f5f5f7}*{box-sizing:border-box}body{margin:0}.top{background:#ef3124;color:#fff;padding:20px 7%;font-size:22px;font-weight:700}.wrap{max-width:1120px;margin:32px auto;padding:0 24px}.bar{display:flex;gap:12px;align-items:center;margin-bottom:24px}input,button{border:1px solid #ddd;border-radius:10px;padding:12px 14px;font-size:15px}input{width:220px}button{background:#ef3124;color:white;border:0;cursor:pointer}.grid{display:grid;grid-template-columns:1fr 1.4fr;gap:20px}.card{background:white;border-radius:18px;padding:22px;box-shadow:0 2px 12px #0000000b}.muted{color:#6e7078}.metric{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eee}.pill{display:inline-block;background:#fff0ef;color:#c52117;padding:5px 9px;border-radius:999px;font-size:12px}.insight{border-left:4px solid #ef3124;padding-left:16px;margin-top:18px}.source{font-size:13px;color:#666;margin-top:12px}h1{margin:0 0 6px;font-size:28px}h2{margin-top:0}@media(max-width:760px){.grid{grid-template-columns:1fr}.wrap{margin-top:18px}}
-  </style>
-</head>
-<body>
-  <div class="top">Альфа-Бизнес · Новостная аналитика</div>
-  <main class="wrap">
-    <div class="bar"><input id="company" value="U_428697" placeholder="SYNTHETIC_U"><button onclick="loadContext()">Загрузить профиль</button><span id="status" class="muted">Демо-режим</span></div>
-    <div class="grid">
-      <section class="card"><h2>Профиль компании</h2><div id="profile"></div></section>
-      <section class="card"><span class="pill">Высокая значимость</span><h1>Ключевые события для бизнеса</h1><p class="muted">Персонализированная аналитика на основе контекста компании и материалов банка.</p><div class="insight"><h2>Стоимость финансирования остаётся высокой</h2><p>У компании есть кредитные продукты. При сохранении высокой ставки новые заёмные средства и рефинансирование могут оставаться дорогими.</p><b>Возможное действие</b><p>Пересмотреть график привлечения финансирования и обсудить сценарии с менеджером.</p><div class="source">Источники: аналитика Альфа-Банка · внешние новости · профиль компании</div></div></section>
-    </div>
-  </main>
-  <script>
-    const demo={company_id:'U_428697',industry:{name:'Оптовая торговля'},location:{region:'Москва'},scale:{revenue:'—'},group_companies:['U_428697'],counterparties:[]};
-    function render(c){document.querySelector('#profile').innerHTML=`<div class="metric"><span>Идентификатор</span><b>${c.company_id||'—'}</b></div><div class="metric"><span>Отрасль</span><b>${c.industry?.name||'—'}</b></div><div class="metric"><span>Регион</span><b>${c.location?.region||'—'}</b></div><div class="metric"><span>Группа компаний</span><b>${c.group_companies?.length||0}</b></div><div class="metric"><span>Контрагенты</span><b>${c.counterparties?.length||0}</b></div>`}
-    async function loadContext(){const id=document.querySelector('#company').value.trim();try{const r=await fetch(`http://localhost:8000/companies/${encodeURIComponent(id)}/context`);if(!r.ok)throw Error();render(await r.json());document.querySelector('#status').textContent='Данные backend';}catch(e){render({...demo,company_id:id});document.querySelector('#status').textContent='Демо-режим: backend не запущен';}}
-    render(demo);
-  </script>
-</body></html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
