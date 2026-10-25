@@ -14,6 +14,6 @@
 
 ## Журнал разработчика
 
-Страница `/api/developer` использует тот же пароль команды. API: `/api/developer/news?company_id=U_14366&role=CFO&status=rejected&limit=50&offset=0`. История: `/api/developer/news/{news_id}/history?company_id=U_14366&role=CFO`.
+Страница `/api/developer` использует тот же пароль команды. API: `/api/developer/news?company_id=U_14366&role=CFO&status=rejected&limit=50&offset=0`. История: `/api/developer/news-history?news_id=...&company_id=U_14366&role=CFO`.
 
 Таблицы `journal_news`, `journal_state`, `journal_history` находятся в существующей SQLite `insights.db` постоянного тома. Статус зависит от компании и роли. Первоначальная загрузка восстанавливает каталог из RSS-кеша и существующие опубликованные карточки; старые отказы задним числом не восстанавливаются. Просмотр не вызывает модели. После перезапуска незавершённая обработка отмечается ошибкой. Лимиты расходов и автоматическая очередь этим обновлением не добавляются.

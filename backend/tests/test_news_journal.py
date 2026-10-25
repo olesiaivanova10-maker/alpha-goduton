@@ -17,3 +17,16 @@ class JournalTests(unittest.TestCase):
    self.assertEqual(j.listing('B','CFO')['items'][0]['status'],'error')
    self.assertEqual(j.listing('A','CFO')['items'][0]['status'],'rejected')
    self.assertEqual(j.listing('A','CFO',search='нет')['total'],0)
+ def test_history_api_with_url_identifier(self):
+  from fastapi.testclient import TestClient
+  from app.main import app
+  with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'INSIGHT_DB_PATH':tmp+'/api.db'}):
+   news_id='https://example.com/news/123?x=1'
+   j.register([{'news_id':news_id,'title':'Тест'}])
+   j.transition(news_id,'A','CFO','rejected','audit','Причина')
+   client=TestClient(app)
+   r=client.get('/api/developer/news-history',params={'news_id':news_id,'company_id':'A'})
+   self.assertEqual(r.status_code,200)
+   self.assertEqual(r.json()['items'][0]['reason'],'Причина')
+   self.assertEqual(client.get('/api/developer/news',params={'status':'bad'}).status_code,422)
+   self.assertEqual(client.get('/api/developer').status_code,200)

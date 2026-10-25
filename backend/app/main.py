@@ -336,6 +336,6 @@ def developer_news(company_id: str = 'U_14366', role: UserRole = UserRole.CFO, s
     return news_journal.listing(company_id,role.value,status,search[:200],max(1,min(limit,100)),max(0,offset))
 
 
-@app.get("/api/developer/news/{news_id}/history")
+@app.get("/api/developer/news-history")
 def developer_news_history(news_id: str, company_id: str = 'U_14366', role: UserRole = UserRole.CFO):
     return {'items':news_journal.history(news_id,company_id,role.value)}
