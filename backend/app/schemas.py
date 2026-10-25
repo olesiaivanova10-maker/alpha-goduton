@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompanyContext(BaseModel):
@@ -42,10 +42,11 @@ class NewsFeedResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     card_id: str
-    question: str
+    question: str = Field(min_length=1,max_length=3000)
 
 
 class ChatResponse(BaseModel):
+    fallback: bool = False
     answer: str
     origin: str
     sources: list[str | dict[str, Any]] = []

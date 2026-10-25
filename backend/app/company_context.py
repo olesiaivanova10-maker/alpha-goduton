@@ -1,9 +1,11 @@
 from .data_loader import companies, persons, payments
+import pandas as pd
 
 
 def _value(row, column):
     value = row.get(column)
-    return None if value != value else value
+    if pd.isna(value):return None
+    return value.item() if hasattr(value,"item") else value
 
 
 def get_company_context(company_id: str) -> dict:

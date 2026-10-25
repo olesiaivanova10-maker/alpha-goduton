@@ -29,7 +29,7 @@ class ModelName(str, Enum):
 
     # Вспомогательные локальные модели для эмбеддингов/реранкинга
     BGE_EMBEDDINGS = "BAAI/bge-m3"
-    BGE_RERANKER = "BAAI/bge-reranker-large"
+    BGE_RERANKER = "BAAI/bge-reranker-v2-m3"
 
 
 class PipelineTask(str, Enum):

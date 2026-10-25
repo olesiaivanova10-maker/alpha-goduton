@@ -68,6 +68,7 @@ class RelevanceAssessment(BaseModel):
 
 class AlfaBankPosition(BaseModel):
     """Экспертная позиция Центра макроэкономических исследований Альфа-Банка (Task #4)."""
+    synthesis_status: str = "no_sources"
     has_bank_report: bool = Field(..., description="Есть ли релевантный макро-отчет банка")
     source_report_title: Optional[str] = Field(None, description="Название отчета банка")
     position_text: str = Field(..., description="Позиция банка по данному событию")
@@ -114,3 +115,9 @@ class ValidationReport(BaseModel):
     is_valid: bool
     hallucination_detected: bool
     notes: str
+
+
+class RagSynthesis(BaseModel):
+    has_matching_report: bool = Field(strict=True)
+    bank_official_view: str = Field(min_length=1,max_length=10000)
+    citation_ids: list[str] = Field(default_factory=list)

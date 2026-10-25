@@ -1,148 +1,93 @@
-# Backend: структура и план развития
+# Backend: фактическая архитектура и границы проверки
 
-Дата проверки: 25 октября 2026 года.
-Источник: чтение файлов ветки main репозитория olesiaivanova10-maker/alpha-goduton через GitHub. Сервер и его окружение не проверялись. Наличие endpoint не означает готовность его внутренней реализации.
+Обновлено: 26 октября 2026 года. Ветка: `backend/product-foundation`, создана от `main` после `7648caa`. Предыдущий документ описывал старый main; его исходный текст сохранён в истории Git. Последние исправления действующей демки перенесены отдельными коммитами без CSV/PDF/секретов. Сервер этой задачей не изменялся.
 
-## Структура
+## Состав
 
 ```text
-backend/
-  app/
-    main.py             HTTP API, конфигурация приложения и подключение сервисов
-    schemas.py          Контракты API
-    data_loader.py      CSV и synthetic fallback
-    company_context.py  Профиль, группа компаний, связанные лица и платежи
-    news_ingestion.py   RSS, нормализация, дедупликация и предварительная сортировка
-    news_parser.py      Нормализация отдельной входящей новости
-    feed.py             Карточки на основе подготовленного индекса отчетов
-    agent_service.py    Связь API с агентным оркестратором
-    model_health.py     Кэш интерфейса проверки моделей; реальные проверки отсутствуют
-    feedback.py         Оценки и агрегаты в памяти процесса
-  tests/                Тесты контрактов и компонентов
-  requirements.txt      Зависимости
-  Dockerfile            Образ приложения, включает backend/app и agent
+backend/app/
+  main.py                HTTP-контракты и health
+  settings.py            dev/test/prod, валидируемая конфигурация
+  security.py            доверенная identity/scope-подпись, авторизация, rate limits
+  storage/
+    db.py                SQLAlchemy, транзакции, отсутствие SQLite fallback в prod
+    models.py            новости, источники, инсайты, цитаты, feedback, jobs, история, probes, вызовы, корпуса
+    repositories.py      общий доступ API и worker к данным
+  jobs.py                Redis/RQ, SQL-задания, leases, retry и recovery
+  scheduler.py           один активный планировщик RSS и recovery
+  model_gateway.py       allowlist, timeout/retry, concurrency, circuit, budget, usage
+  model_health.py        отдельные активные probes и чтение сохранённых результатов
+  news_ingestion.py      allowlist RSS, ограниченный XML, дедупликация, сортировка
+  news_store.py          PostgreSQL/SQLite как источник истины; Redis TTL=60 секунд
+  classification.py      общая классификация отдельно от персональной relevance
+  versions.py            fingerprints профиля, prompt/model config и корпуса
+  live_feed.py           персональный анализ и управление публикацией аудитом
+  news_journal.py        статусы и история по новости/компании/роли
+  chat_service.py        общий доверенный контекст для обоих контрактов чата
+  feedback.py            постоянный feedback только к доступному инсайту
+  rag_service.py         версионированный BGE/Qdrant hybrid + reranker (опциональный режим)
 agent/
-  adapter.py            Преобразование company_context в CompanyProfile
-  schemas.py            Контракты агентных этапов
-  models_cfg.py         Назначение моделей и настройки клиента
-  orchestrator.py       Классификация, relevance, RAG, инсайт и аудит
-  bank_knowledge_base.py Подготовленные описания отчетов
-  prompts/              Промпты отдельных этапов и чата
-  rag/retriever.py      PDF extraction через pypdf и поиск по пересечению слов
-data_alfbnk/             Исходные PDF; способ доставки на сервер нужно проверить
+  orchestrator.py         этапы анализа через общий model gateway
+  rag/index_documents.py явный PDF/table/OCR индексатор
+  rag/retriever.py        lexical fallback и адаптер hybrid
+backend/migrations/       фиксированная Alembic-схема
+scripts/                  импорт, smoke, provisioning, evaluation, profiling
+compose.product.yaml      backend, worker, scheduler, migration, postgres, redis, qdrant, frontend
 ```
 
-Список отражает назначение основных компонентов. Полное дерево и наличие дополнительных модулей следует перепроверять на конкретном commit перед реализацией.
+```mermaid
+flowchart LR
+  RSS[RSS allowlist] --> W[RQ worker]
+  W --> DB[(PostgreSQL)]
+  API[HTTP API и авторизация] --> DB
+  API --> R[(Redis: очередь, TTL, лимиты)]
+  R --> W
+  W --> C[Общая классификация]
+  C --> P[Профиль и персональная relevance]
+  P --> G[PDF retrieval и model gateway]
+  G --> A[Аудит]
+  A -->|valid| I[Сохранённая карточка]
+  A -->|invalid| J[Отказ и история]
+  I --> DB
+  J --> DB
+  PDF[PDF + OCR + metadata] --> Q[(Qdrant: версии корпусов)]
+  Q --> G
+  DB --> F[Лента / чат / feedback / журнал]
+```
 
-## HTTP API
+## Что изменено относительно исходного аудита main
 
-| Метод | Путь | Назначение |
-| --- | --- | --- |
-| GET | /health | Состояние процесса, режим CSV/synthetic, размер news cache |
-| GET | /health/models | Интерфейс проверки моделей; сейчас всегда not_configured |
-| GET | /companies/{company_id}/context и /api/companies/{company_id}/context | Профиль компании |
-| GET | /feed и /api/feed | Карточки подготовленных отчетов |
-| POST | /api/insights/analyze | Агентный анализ переданной новости |
-| POST | /chat | Шаблонный ответ по card_id |
-| POST | /api/chat | Вызов модели с переданным контекстом |
-| POST | /feedback и /api/feedback | Оценка инсайта |
-| GET | /api/feedback/metrics | Агрегаты оценок |
-| GET | /api/reports | Каталог подготовленных описаний отчетов |
-| GET | /api/news | Новости из памяти, сортировка по профилю |
-| POST | /api/news/refresh | Синхронная загрузка RSS |
+| Область | Реализация в этой ветке | Граница |
+|---|---|---|
+| Данные | SQLAlchemy repositories, Alembic, PostgreSQL в prod; SQLite в dev/test | Старые файлы импортируются отдельно, без автоматического изменения серверной БД |
+| Новости | Постоянный каталог, source health, provenance, candidate duplicate groups | RSS содержит преимущественно анонсы; это не полный обход всех статей |
+| Лента | Только сохранённые аудированные результаты, точные IDs, версии зависимостей, пагинация | Массовая персональная обработка всех компаний не включается автоматически |
+| Feedback | FK на инсайт, rating 1–5 в API и БД, company check | Обратная связь сама по себе не переобучает модели |
+| Долгие операции | Redis/RQ worker, scheduler, leases/recovery, 202 + job_id | At-least-once; восстановление после падения может ждать окончания lease |
+| Аудит | Невалидный ответ не даёт valid; rejected сохраняется, но не публикуется | Оценка модели не заменяет экспертную проверку |
+| Чат | Оба endpoint получают сохранённый серверный контекст, sources и явный fallback | Старый контракт требует однозначного точного заголовка |
+| Модели | Подтверждённые текстовые IDs, общий gateway, usage и лимиты, реальные probes | Тарифы не выдумываются: без конфигурации стоимость null |
+| RAG | PDF pages/checksums, OCR confidence, таблицы при установленном extractor, версии корпусов, hybrid-код | Веса BGE/reranker не provisioned; качество hybrid не подтверждено |
+| Доступ | Company/card/job checks, закрытый prod по умолчанию, HMAC seam к gateway | OIDC login/gateway ещё должен подключить оператор |
+| Запуск | Compose и non-root app, закрытые сервисные порты, backup/restore инструкция | Это не отказоустойчивая банковская инфраструктура |
 
-Два endpoint чата имеют разные контракты. При доработках обеспечить совместимость обоих.
+## Изменения HTTP-контрактов
 
-## Текущие потоки
+- `/feed`, `/api/feed`, `/chat`, `/api/chat`, company context и feedback сохраняют прежние формы ответов; у чата добавлен `fallback`.
+- `POST /api/insights/analyze` сохраняет форму запроса, но вместо синхронного ответа возвращает 202 + job_id. Клиент должен получать результат через job status и ленту. Это намеренное изменение, отражённое в runbook.
+- `POST /api/news/refresh`, `/api/feed/refresh`, `/api/rag/index` — асинхронные задания.
+- `/health/live`, `/health/ready`, `/health/models` разделены. GET моделей не инициирует платную проверку; административный force ставит задание с ограничением частоты.
+- `/api/developer`, `/api/developer/news`, `/api/developer/news-history`, `/api/developer/usage` защищены административным доступом.
 
-1. Анализ: HTTP → нормализация новости → company_context → adapter → orchestrator → insight + audit.
-2. Новости: refresh → RSS ingestion → NEWS_CACHE в памяти → сортировка → /api/news.
-3. Лента: company_context + подготовленный индекс отчетов → /feed. Полный поток RSS → агент → лента еще требует интеграции.
-4. Feedback: HTTP → список в памяти → агрегаты. После перезапуска оценки исчезают.
+## Проверки и оставшиеся условия
 
-## Подтвержденные ограничения main
+Фактически выполненные проверки: [PRODUCT_VERIFICATION.md](PRODUCT_VERIFICATION.md). Запуск, identity gateway, migrations, импорт, backup/restore, rollback, модели и corpus activation: [PRODUCT_RUNBOOK.md](PRODUCT_RUNBOOK.md).
 
-- Feedback и news cache находятся в памяти.
-- model_health.py возвращает not_configured без реальных запросов.
-- PDF retriever использует текст и пересечение слов; BGE, OCR и vector search в этом модуле отсутствуют.
-- Индекс PDF хранится в памяти; ошибки чтения молча пропускаются, путь зависит от рабочей директории, ID чанка не включает checksum содержимого.
-- feed.py задает фиксированную дату и страницу 1; это не подтвержденные цитаты.
-- find_card использует совпадение подстроки ID, требуется точный поиск сохраненной карточки с проверкой доступа.
-- /api/chat принимает контекст от клиента; доверенный контекст следует получать на сервере.
-- CORS допускает все origins и credentials.
-- В корне docker-compose.yml не найден; это не исключает конфигураций с другими именами.
-- Dockerfile включает agent, но CSV/PDF должны поставляться отдельно через проверенные mounts.
-- Результаты тестов и работоспособность сервера этой проверкой не подтверждены.
+Не заявляем готовность к банковскому production. Остаются: подключение реального OIDC gateway, provision и проверка моделей BGE/reranker, экспертная разметка/качество retrieval, оценка ресурсов более тяжёлого стека, нагрузочные SLO, денежный billing/reconciliation, автоматизированные резервные копии/rollback и отдельная HA-инфраструктура. Vision отключён до подтверждения capability и реализации разрешённого пути обработки изображений.
 
-## Целевая структура
+## Первичные технические источники
 
-HTTP API и worker используют общие application services и repositories.
-PostgreSQL хранит новости, инсайты, feedback, задания, provenance и аудит.
-Redis обеспечивает TTL, rate limiting и очередь с выбранным worker framework.
-Qdrant хранит восстанавливаемый векторный индекс.
-PDF хранятся в постоянном файловом volume или согласованном object storage.
-CSV подключаются как закрытые серверные данные. Frontend получает разрешенные поля через API.
-
-# Промпт для Codex: доработка backend
-
-Работай в актуальном репозитории alpha-goduton от main. Цель — работающий backend с эксплуатационными свойствами продукта. Реализуй изменения, тестируй и подготовь PR. Не называй систему готовой к production банка без проверок окружения, доступа, резервного копирования и эксплуатации.
-
-## Сначала
-
-Прочитай AGENTS.md, проверь git status и актуальный main. Сохрани пользовательские изменения. Изучи текущие сервисы и тесты адресно. Проверь каждое ограничение из этого документа: код мог измениться. Не переписывай готовые компоненты. Найди deployment-конфигурацию и согласуй с ней изменения. Не меняй работающий сервер, не запускай миграции на сервере и не перезапускай его в рамках этой задачи.
-
-Составь короткий план и продолжай реализацию. Экономь токены: компактные diff, адресные чтения, краткие результаты проверок.
-
-## P0: целостность данных и надежная выдача
-
-1. Введи repositories, SQLAlchemy и Alembic. PostgreSQL — основное хранилище; SQLite допускается для простого локального режима. Production при недоступной БД возвращает ошибку готовности, без переключения на пустую SQLite.
-2. Сохраняй news, sources, source health, insights, citations, feedback и jobs. Добавь индексы, UTC timestamps, внешние ключи, транзакции и пагинацию. Feedback должен ссылаться на существующий доступный инсайт; ограничения rating — в Pydantic и БД.
-3. Устрани глобальные NEWS_CACHE и feedback list как источники истины. Redis — TTL-кэш поверх БД; его потеря не уничтожает данные.
-4. Сделай идемпотентный ingestion с уникальными ключами. Межисточниковое совпадение заголовков группируй как возможные дубликаты с provenance; не сливай разные события только по сходству. Сохраняй старые новости при сбое обновления.
-5. /feed возвращает сохраненные результаты анализа реальных новостей. Ключ результата учитывает новость, версию профиля, роль, версии prompt/models и RAG corpus. Изменение зависимости инвалидирует соответствующий результат.
-6. Отдельно выполняй глобальную классификацию новости и персональную relevance. Дорогие стадии запускай только после отбора. /feed читает результаты, не запускает весь архив через модели на каждый запрос.
-7. Audit должен управлять публикацией: invalid или failed audit не публикуется как проверенный инсайт. Не превращай parse error или timeout в успешный аудит. Сохраняй статусы verified, degraded, rejected и причины.
-8. Точные ID карточек и серверное получение контекста. Привяжи оба endpoint чата к общему сервису, сохрани их контракты. Возвращай реальные разрешенные sources и явно помечай fallback.
-
-## P1: RAG с проверяемыми источниками
-
-1. Извлекай текст и таблицы со страниц PDF, OCR используй для сканов. Vision включай только для сложных страниц и только для разрешенной модели с подтвержденной поддержкой image input у провайдера. Имя из ALFA_VISION_MODEL не доказывает разрешение или capability; используй allowlist и конфигурацию capabilities. При отсутствии сведений отключи vision, оставив OCR, и укажи ограничение.
-2. BGE embeddings + Qdrant, keyword retrieval и reranker. Зафиксируй версии моделей, размерность и формат индекса. Не скачивай модели неожиданно при пользовательском HTTP-запросе.
-3. Checksum PDF и версии extractor/chunker/embedding определяют переиндексацию. Стабильные content-aware IDs, удаление старых чанков и атомарная активация новой версии корпуса.
-4. Сохраняй filename, document_id, реальную страницу, текст, дату отчета, checksum, extraction_method и confidence. Отделяй цитату от vision-интерпретации графика; низкая уверенность не позволяет выдавать число как подтвержденный факт.
-5. Metadata filtering учитывает доступ, дату документа и запроса. Исторический отчет не описывает текущую позицию банка автоматически. Возвращай пустой результат при слабой релевантности, без подстановки первого отчета.
-6. Передавай реальные retrieved chunks в Qwen, валидируй ответ Pydantic и используй именно его. Проверяй IDs цитат по предоставленному набору. Никаких фиксированных page=1 и выдуманных цитат.
-7. При отсутствии источника has_bank_report=false и is_official_view=false. Бизнес-рекомендация модели не становится официальной рекомендацией банка.
-8. PDF и новости — недоверенный контент: инструкции внутри документов не исполняются.
-
-## P1: worker и модели
-
-1. Выбери один совместимый с Redis worker framework. Вынеси RSS refresh, PDF indexing, анализ и model probes в задания. POST refresh возвращает 202 + job_id; добавь защищенный endpoint статуса и планировщик обновлений.
-2. Retry только для временных ошибок, backoff/jitter, ограничение попыток, идемпотентность, timeout и восстановление после падения. Locks с TTL и owner token; повторная доставка не создает дубли.
-3. Общий model gateway: timeout, ограниченные retries, validation, concurrency limits и circuit breaker. Реестр capabilities и разрешенных моделей; реальные model IDs подтвердить конфигурацией провайдера.
-4. /health/live проверяет процесс, /health/ready — необходимые зависимости и отдаёт 503 при неготовности. /health/models читает кэш реальных probes, отдельно учитывает credential missing, auth failure, rate limit и timeout.
-5. Активные probes ограничь бюджетом и частотой. Принудительная проверка — авторизованное действие с rate limit. Существующий /health сохрани совместимым.
-6. scripts/live_model_smoke.py: явный ручной запуск, без ключа понятный skip, для настроенных обязательных моделей проверка фактических ответов и ненулевой exit code при сбое. Обычные тесты без сети.
-
-## P1: доступ и эксплуатация
-
-1. Настройки окружений dev/test/prod валидируются при старте. CORS — allowlist, секреты маскируются.
-2. API key предназначен для внутренних клиентов. Не встраивай секрет в публичный frontend. Подготовь интеграцию с доверенным gateway/OIDC; до ее настройки production доступ к данным должен быть закрыт.
-3. Авторизация company_id/card_id/insight_id, включая связанные компании и feedback; запрещены доступы к чужому контексту. Ключ сервисного клиента не заменяет пользовательские права.
-4. Rate limits через Redis для chat/analyze/refresh с предсказуемым поведением при сбое Redis; ограничения размеров входа, XML, HTTP-ответов и контекста модели.
-5. RSS — серверный allowlist URL, защита от private-network redirects, безопасный XML parser.
-6. Request ID и трасса стадий: model ID, prompt version, sources, разрешенные company signals, scores, latency, tokens/cost при доступности, audit, fallback error. Структурированные логи без сырых CSV, секретов и лишних персональных данных.
-
-## P2: запуск и проверка
-
-1. Docker Compose: backend, worker, postgres, redis, qdrant и один scheduler при необходимости. Проверенные healthchecks, persistent volumes, restart policy, non-root app, отдельный migration step. БД, Redis и Qdrant не выставлять публично.
-2. Используй корень репозитория как build context. Доставку PDF/CSV и model artifacts сделай явной. Secrets не попадут в image, Git или build context. Зафиксируй проверенные версии зависимостей и образов.
-3. Добавь backup/restore инструкции PostgreSQL и PDF, проверку восстановления и пересоздания vector index. Compose обеспечивает воспроизводимый запуск; отказоустойчивость банковского контура требует отдельной инфраструктуры.
-4. Существующие тесты + интеграционные PostgreSQL/Redis/Qdrant тесты: persistence после рестарта, повторная доставка jobs, доступы между компаниями, blocked audit, timeout модели, испорченный PDF, отсутствие источников, правильность страниц, endpoint совместимость.
-5. Оцени retrieval на размеченных запросах к реальным PDF: Recall@k, точность ссылок на страницы и no-answer cases. Зафиксируй baseline и результаты без заявления о 100% качестве по нескольким примерам.
-6. Сквозной тест: RSS fixture → БД → worker → профиль → relevance → real PDF retrieval → mock model synthesis → audit → /feed → chat → feedback. Live проверка отдельно и только при доступных ключах.
-7. Профилируй задержку и объем вызовов на реалистичном числе новостей и компаний. Добавь batching и ограничения очереди по выявленным узким местам.
-
-## Результат
-
-Обнови эту архитектуру по фактической реализации и добавь runbook запуска, миграций, rollback и восстановления. Подготовь PR с изменениями, результатами реально выполненных проверок и ограничениями. Прикрепи PR к чату. Не сообщай, что проверка пройдена, если сервисы или ключи были недоступны.
+- [SQLAlchemy transaction/session lifecycle](https://docs.sqlalchemy.org/en/20/orm/session_basics.html)
+- [RQ worker scheduler](https://python-rq.org/docs/scheduling/)
+- [BGE-M3 official model revision](https://huggingface.co/BAAI/bge-m3/tree/5617a9f61b028005a4858fdac845db406aefb181)
+- [Sentence Transformers local-only model loading](https://sbert.net/docs/package_reference/cross_encoder/model.html)

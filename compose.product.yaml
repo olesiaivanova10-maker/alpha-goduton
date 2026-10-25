@@ -1,0 +1,120 @@
+name: alpha-product
+x-app: &app
+  image: alpha-product-app:${APP_IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+    args:
+      INSTALL_RAG: ${INSTALL_RAG:-false}
+  env_file:
+    - path: .env
+      required: false
+  environment: &env
+    APP_ENV: prod
+    DATABASE_URL: postgresql+psycopg://alpha:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/alpha
+    REDIS_URL: redis://redis:6379/0
+    QDRANT_URL: http://qdrant:6333
+    DATA_DIR: /data/csv
+    PDF_DIR: /data/pdf
+    BGE_MODEL_PATH: /models/bge-m3
+    RERANKER_MODEL_PATH: /models/reranker
+    RAG_MODE: ${RAG_MODE:-lexical}
+  volumes:
+    - ./backend/data:/data/csv:ro
+    - ./data_alfbnk:/data/pdf
+    - model_artifacts:/models:ro
+    - reports:/app/backend/data/reports
+  restart: unless-stopped
+  init: true
+services:
+  postgres:
+    image: postgres:16.6-alpine@sha256:1d04b9ba1d4996401f2552b51beda8187f175c0645c091e4781134fc9c9a3eef
+    environment:
+      POSTGRES_USER: alpha
+      POSTGRES_DB: alpha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U alpha -d alpha]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7.4.1-alpine@sha256:c1e88455c85225310bbea54816e9c3f4b5295815e6dbf80c34d40afc6df28275
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  qdrant:
+    image: qdrant/qdrant:v1.15.1@sha256:d122138f76868edba68d36cb0833139c1d1761f00f09e48e61f8314196e6a4c6
+    volumes: [qdrant_data:/qdrant/storage]
+    healthcheck:
+      test: [CMD, bash, -c, 'exec 3<>/dev/tcp/127.0.0.1/6333; printf "GET /readyz HTTP/1.0\r\n\r\n" >&3; read -r line <&3; [[ "$$line" == *"200"* ]]']
+      interval: 10s
+      timeout: 4s
+      retries: 10
+    restart: unless-stopped
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: [alembic, -c, backend/alembic.ini, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+  backend:
+    <<: *app
+    ports: ['127.0.0.1:18081:8000']
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 6
+      start_period: 30s
+  worker:
+    <<: *app
+    command: [python, -m, backend.app.worker]
+    healthcheck:
+      test: [CMD, python, -m, backend.app.worker_health]
+      interval: 20s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  scheduler:
+    <<: *app
+    command: [python, -m, backend.app.scheduler]
+    healthcheck:
+      test: [CMD, python, -c, "from backend.app.jobs import redis; assert redis().exists('scheduler-heartbeat')"]
+      interval: 20s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  frontend:
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1/]
+      interval: 15s
+      timeout: 4s
+      retries: 4
+    build: {context: ., dockerfile: frontend/Dockerfile.product}
+    ports: ['127.0.0.1:18080:80']
+    depends_on:
+      backend: {condition: service_healthy}
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  model_artifacts:
+  reports:

@@ -10,6 +10,10 @@ class FakeOrchestrator:
 
 
 class AgentServiceTests(unittest.TestCase):
+    def setUp(self):
+        from helpers import company_fixture
+        self.enterContext(company_fixture())
+
     def test_service_passes_real_company_context_to_agent(self):
         service = AgentService(FakeOrchestrator())
         result = service.analyze(

@@ -1,21 +1,58 @@
-"""Atomic persistent RSS snapshot; separate from company-specific insights."""
+"""Durable database snapshot with an expendable short-lived Redis cache."""
+
 import json
-import os
 from pathlib import Path
 from .news_ingestion import NewsRecord
+from .storage import repositories as repo
+from .settings import settings
 
-PATH = Path(os.getenv('NEWS_CACHE_PATH', '/app/storage/news.json' if Path('/app/storage').exists() else 'backend/data/news.json'))
+PATH = Path("backend/data/news.json")  # legacy import tooling only
+
 
 def save_news(records, status):
-    PATH.parent.mkdir(parents=True, exist_ok=True)
-    temporary = PATH.with_suffix('.tmp')
-    temporary.write_text(json.dumps({'items':[r.model_dump(mode='json') for r in records], 'sources':status},ensure_ascii=False))
-    os.replace(temporary,PATH)
+    repo.put_news(records, status)
+    if settings().redis_url:
+        try:
+            from .jobs import redis
+
+            redis().delete("news-snapshot")
+        except Exception:
+            pass
+
 
 def load_news():
-    if not PATH.exists(): return [], {'loaded':[], 'failed':[], 'counts':{}}
-    try:
-        data=json.loads(PATH.read_text())
-        return [NewsRecord.model_validate(x) for x in data['items']],data['sources']
-    except (ValueError,KeyError):
-        return [], {'loaded':[], 'failed':[{'error':'Invalid persistent cache'}], 'counts':{}}
+    cache = None
+    if settings().redis_url:
+        try:
+            from .jobs import redis
+
+            raw = redis().get("news-snapshot")
+            if raw:
+                cache = json.loads(raw)
+        except Exception:
+            pass
+    values = cache["items"] if cache else repo.all_news()
+    status = cache["status"] if cache else repo.source_status()
+    records = []
+    for data in values:
+        try:
+            records.append(NewsRecord.model_validate(data))
+        except ValueError:
+            continue  # Legacy card metadata can lack article content.
+    if cache is None and settings().redis_url:
+        try:
+            from .jobs import redis
+
+            redis().set(
+                "news-snapshot",
+                json.dumps(
+                    {
+                        "items": [r.model_dump(mode="json") for r in records],
+                        "status": status,
+                    }
+                ),
+                ex=60,
+            )
+        except Exception:
+            pass  # Cache loss never erases persistent records.
+    return records, status

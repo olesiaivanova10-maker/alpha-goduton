@@ -8,6 +8,7 @@ services:
       - path: .env
         required: false
     environment:
+      REDIS_URL: redis://redis:6379/0
       DATA_DIR: /app/backend/data
       FEEDBACK_DB_PATH: /app/storage/feedback.db
     volumes:
@@ -39,6 +40,31 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+  redis:
+    image: redis:7.4.1-alpine@sha256:c1e88455c85225310bbea54816e9c3f4b5295815e6dbf80c34d40afc6df28275
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redis_data:/data]
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /app/backend/data
+    volumes:
+      - ./backend/data:/app/backend/data:ro
+      - ./data_alfbnk:/app/data_alfbnk:ro
+      - backend_storage:/app/storage
+      - reports:/app/backend/data/reports
+    command: [python, -m, backend.app.worker]
+    restart: unless-stopped
+    depends_on: [redis]
+
 volumes:
+  redis_data:
   backend_storage:
   reports:

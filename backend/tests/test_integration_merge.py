@@ -5,6 +5,10 @@ from agent.orchestrator import AgentOrchestrator
 from orchestrator import AgentOrchestrator as CompatibilityOrchestrator
 
 class IntegrationMergeTests(unittest.TestCase):
+    def setUp(self):
+        from helpers import company_fixture
+        self.enterContext(company_fixture())
+
     def test_canonical_agent(self):
         self.assertIs(AgentOrchestrator, CompatibilityOrchestrator)
 

@@ -14,7 +14,7 @@ class JournalTests(unittest.TestCase):
    self.assertEqual(len(j.history('n','A','CFO')),2)
    j.transition('n','B','CFO','sent','audit','Аудит','job2')
    j.bootstrap([r])
-   self.assertEqual(j.listing('B','CFO')['items'][0]['status'],'error')
+   self.assertEqual(j.listing('B','CFO')['items'][0]['status'],'sent') # API startup cannot interrupt a separate worker
    self.assertEqual(j.listing('A','CFO')['items'][0]['status'],'rejected')
    self.assertEqual(j.listing('A','CFO',search='нет')['total'],0)
  def test_history_api_with_url_identifier(self):

@@ -6,13 +6,14 @@ def _features(context: dict) -> dict[str, Any]:
     revenue=scale.get('revenue'); revenue=float(revenue) if revenue is not None else None; country=trade.get('country')
     return {'matched_okved': f"{industry.get('okved_code') or '—'} {industry.get('name') or 'Отрасль не указана'}", 'revenue_rub': revenue, 'has_loans': bool(products.get('credit')), 'has_leasing': bool(products.get('leasing')), 'has_deposits': bool(products.get('deposits')), 'foreign_trade_countries': country, 'influencing_signals': [f"Отрасль ОКВЭД: {industry.get('okved_code') or 'не указана'}", f"Выручка: {revenue / 1e9:.1f} млрд ₽" if revenue else 'Выручка не указана', 'Есть кредитные продукты' if products.get('credit') else 'Кредитные продукты не указаны', f"ВЭД: {country}" if country else 'Данные о ВЭД отсутствуют']}
 
-def build_feed(company_id: str, role: str = 'CFO') -> dict[str, Any]:
+def build_feed(company_id: str, role: str = 'CFO',limit: int=100,offset: int=0) -> dict[str, Any]:
     from .live_feed import events
-    saved=events(company_id,role)
-    if saved:
-        return {'company_id':company_id,'company_name':f'Обезличенная компания {company_id}','target_role':role,'total_events':len(saved),'critical_events_count':sum(e['relevance']['is_critical'] for e in saved),'events':saved}
+    saved=events(company_id,role,limit,offset)
+    from .storage.repositories import feed_counts
+    from .versions import analysis_version
+    total,critical=feed_counts(company_id,role,analysis_version(company_id))
     get_company_context(company_id)
-    return {'company_id':company_id,'company_name':f'Обезличенная компания {company_id}','target_role':role,'total_events':0,'critical_events_count':0,'events':[]}
+    return {'company_id':company_id,'company_name':f'Обезличенная компания {company_id}','target_role':role,'total_events':total,'critical_events_count':critical,'events':saved}
 
 def find_card(card_id: str) -> dict[str, Any] | None:
     from .live_feed import card

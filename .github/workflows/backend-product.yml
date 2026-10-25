@@ -1,0 +1,20 @@
+name: Backend product checks
+on: [pull_request, workflow_dispatch]
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      DATA_DIR: /tmp/no-private-csv
+      ALLOW_SYNTHETIC_FALLBACK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r backend/requirements.txt
+      - run: PYTHONPATH=backend:. python -m unittest discover -s backend/tests -v
+      - uses: actions/setup-node@v4
+        with: {node-version: '24', cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci && npm run build
+        working-directory: frontend
+      - run: POSTGRES_PASSWORD=ci-only-fixture docker compose -f compose.product.yaml config --quiet

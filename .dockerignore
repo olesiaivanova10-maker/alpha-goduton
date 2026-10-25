@@ -12,3 +12,10 @@ backend/data
 frontend/dist
 .vscode
 .DS_Store
+models
+model_artifacts
+data_alfbnk
+**/*.dump
+team-access.txt
+server-certificate.crt
+ENV.local

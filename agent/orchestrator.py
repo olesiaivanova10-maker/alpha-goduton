@@ -69,18 +69,9 @@ class AgentOrchestrator:
             # Оффлайн-заглушка для отладки без API
             return self._mock_response(task, user_prompt)
 
-        response = self.client.chat.completions.create(
-            model=model_cfg.model.value,
-            temperature=model_cfg.temperature,
-            max_tokens=model_cfg.max_tokens,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            timeout=20 if task == PipelineTask.ORCHESTRATOR else self.cfg.timeout_sec,
-            response_format={"type": "json_object"} if model_cfg.supports_structured_output else None
-        )
-        return response.choices[0].message.content
+        from backend.app.model_gateway import call
+        return call(self.client,task,model_cfg,system_prompt,user_prompt,
+                    20 if task == PipelineTask.ORCHESTRATOR else self.cfg.timeout_sec)
 
     def step_1_classify(self, news: NewsItem) -> NewsClassification:
         """Шаг 1 (Gemma 4): Фильтрация и извлечение сути события."""
@@ -133,13 +124,10 @@ class AgentOrchestrator:
         bank_chunk: Optional[dict] = None
     ) -> AlfaBankPosition:
         """Шаг 3 (Qwen 3.6 + BGE): RAG-поиск экспертной позиции Альфа-Банка."""
+        # Legacy supplied context is not proof of an official bank position.
         if bank_chunk:
-            return AlfaBankPosition(
-                has_bank_report=True,
-                source_report_title=bank_chunk.get("title"),
-                position_text=bank_chunk.get("text", ""),
-                is_official_view=True
-            )
+            return AlfaBankPosition(has_bank_report=False,source_report_title=None,
+                position_text='Переданный контекст не подтверждён индексом источников.',is_official_view=False)
 
         from .rag.retriever import retrieve_bank_context
         query = f"{news.title} {classification.factual_essence}"
@@ -148,19 +136,22 @@ class AgentOrchestrator:
             return AlfaBankPosition(has_bank_report=False, source_report_title=None,
                 position_text="Прямой аналитический отчёт не найден.", is_official_view=False)
         sources = [{"filename":c.filename,"page":c.page,"chunk_id":c.chunk_id,
-                    "score":c.score,"extraction_method":c.extraction_method} for c in chunks]
-        excerpts = "\n\n".join(f"{c.filename}, страница {c.page}: {c.text[:1200]}" for c in chunks)
+                    "score":c.score,"extraction_method":c.extraction_method,"checksum":c.checksum,"report_date":c.report_date,"confidence":c.confidence} for c in chunks]
+        excerpts = "\n\n".join(f"[{c.chunk_id}] {c.filename}, страница {c.page}, дата {c.report_date or 'не установлена'}: {c.text[:1200]}" for c in chunks)
         if self.has_live_api:
             prompt = build_rag_prompt({"title":news.title,"factual_essence":classification.factual_essence},excerpts)
             try:
-                data = json.loads(self._call_llm(PipelineTask.RAG,prompt['system'],prompt['user']))
+                from .schemas import RagSynthesis
+                parsed=RagSynthesis.model_validate_json(self._call_llm(PipelineTask.RAG,prompt['system'],prompt['user']))
+                data=parsed.model_dump()
+                if not set(parsed.citation_ids).issubset({c.chunk_id for c in chunks}):raise ValueError('Unknown citation ID')
                 text = data['bank_official_view']
                 if not isinstance(text,str) or not text.strip(): raise ValueError('Empty RAG response')
-                return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
-                    position_text=text,is_official_view=bool(data.get('has_matching_report')),sources=sources,retrieval_query=query,evidence_text=excerpts)
+                return AlfaBankPosition(synthesis_status="generated",has_bank_report=True,source_report_title=chunks[0].filename,
+                    position_text=text,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
             except (ValueError,KeyError,TypeError):
                 logger.warning('Invalid RAG synthesis JSON; returning excerpts')
-        return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
+        return AlfaBankPosition(synthesis_status="extracts_only",has_bank_report=True,source_report_title=chunks[0].filename,
             position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
 
     def step_4_deep_insight(

@@ -21,6 +21,10 @@ class FakeAgent:
         return ValidationReport(is_valid=self.valid,hallucination_detected=not self.valid,notes='Тест')
 
 class LiveFeedTests(unittest.TestCase):
+    def setUp(self):
+        from helpers import company_fixture
+        self.enterContext(company_fixture())
+
     def test_persistence_and_rejected_audit(self):
         from app.agent_service import AgentService
         record={'news_id':'N1','title':'Ставка','body':'Тест','source_name':'Тест','source_url':'https://example.com','published_at':'2026-10-25T00:00:00Z'}
@@ -44,7 +48,7 @@ class LiveFeedTests(unittest.TestCase):
             self.assertIn('Тест',rejected['reason'])
             self.assertEqual([x['stage'] for x in news_journal.history('N1','U_14366','CFO')],['classify','relevance','rag','generation','audit','audit'])
             with patch.object(agent,'step_1_classify',side_effect=RuntimeError('private-key-do-not-log')):
-                live_feed.generate('j4','U_14366','CFO',[record],service)
+                live_feed.generate('j4','U_14366','CFO',[{**record,'news_id':'N2'}],service)
             failed=news_journal.listing('U_14366','CFO')['items'][0]
             self.assertEqual(failed['status'],'error')
             self.assertNotIn('private-key-do-not-log',failed['reason'])

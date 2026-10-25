@@ -3,6 +3,10 @@ from unittest.mock import patch
 from app.feed import build_feed, find_card
 
 class FeedContractTests(unittest.TestCase):
+    def setUp(self):
+        from helpers import company_fixture
+        self.enterContext(company_fixture())
+
     def test_empty_feed_has_no_static_news(self):
         with patch('app.live_feed.events',return_value=[]):
             response=build_feed('U_26030','CFO')
@@ -11,7 +15,7 @@ class FeedContractTests(unittest.TestCase):
 
     def test_stored_event_is_used(self):
         event={'card_id':'test','relevance':{'is_critical':True}}
-        with patch('app.live_feed.events',return_value=[event]):
+        with patch('app.live_feed.events',return_value=[event]),patch('app.storage.repositories.feed_counts',return_value=(1,1)):
             response=build_feed('U_26030','CFO')
         self.assertEqual(response['events'],[event])
         self.assertEqual(response['critical_events_count'],1)
