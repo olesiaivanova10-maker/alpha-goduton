@@ -4,3 +4,10 @@ __pycache__/
 .env
 backend/data/*.csv
 !backend/data/*.example.csv
+
+node_modules/
+dist/
+*.db
+backend/data/reports/
+
+test_cases/rag_test_results.txt
