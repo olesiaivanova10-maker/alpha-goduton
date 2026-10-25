@@ -15,3 +15,6 @@ test_cases/rag_test_results.txt
 .DS_Store
 .vscode/
 frontend/vite.local.config.ts
+
+backend/data/news.json
+data_alfbnk/*.pages.json

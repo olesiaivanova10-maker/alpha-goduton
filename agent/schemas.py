@@ -72,6 +72,8 @@ class AlfaBankPosition(BaseModel):
     source_report_title: Optional[str] = Field(None, description="Название отчета банка")
     position_text: str = Field(..., description="Позиция банка по данному событию")
     is_official_view: bool = Field(default=True, description="True если из отчета, False если гипотеза AI")
+    sources: list[dict] = Field(default_factory=list)
+    retrieval_query: Optional[str] = None
 
 
 class NextBestAction(BaseModel):

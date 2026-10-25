@@ -14,6 +14,7 @@
 
 import json
 import logging
+from urllib.parse import urlsplit
 from typing import Dict, Any, Optional, Tuple
 try:
     from openai import OpenAI
@@ -43,6 +44,8 @@ class AgentOrchestrator:
     def __init__(self):
         self.cfg = config
         self.has_live_api = (
+            urlsplit(self.cfg.base_url).scheme in {"https", "http"} and
+            bool(urlsplit(self.cfg.base_url).hostname) and
             bool(self.cfg.api_key) and
             self.cfg.api_key != "mock-token" and
             not self.cfg.api_key.startswith("mock")
@@ -132,30 +135,27 @@ class AgentOrchestrator:
                 is_official_view=True
             )
 
-        # Автоматический поиск по локальной базе 9 отчетов Альфа-Банка
-        sector = company.mainokved_name if company else None
-        matches = bank_retriever.find_relevant_reports(news.title, news.body, sector_name=sector, top_k=1)
-        if matches:
-            top_report = matches[0]
-            return AlfaBankPosition(
-                has_bank_report=True,
-                source_report_title=f"{top_report.report_title} ({top_report.source_filename})",
-                position_text=f"{top_report.detailed_text}\nРекомендация банка: {top_report.official_recommendation}",
-                is_official_view=True
-            )
-
-        # Если отчет не найден, генерируем выжимку позиции через Qwen 3.6
-        prompt = build_rag_prompt(
-            {"title": news.title, "factual_essence": classification.factual_essence},
-            retrieved_chunks="Прямой аналитический отчет по данной узкой теме не найден в локальной базе."
-        )
-        raw_res = self._call_llm(PipelineTask.RAG, prompt["system"], prompt["user"])
-        return AlfaBankPosition(
-            has_bank_report=False,
-            source_report_title=None,
-            position_text="По экспертной оценке, событие требует внимания к управлению оборотными активами.",
-            is_official_view=False
-        )
+        from .rag.retriever import retrieve_bank_context
+        query = f"{news.title} {classification.factual_essence}"
+        chunks = retrieve_bank_context(query, company.model_dump() if company else None, top_k=4)
+        if not chunks:
+            return AlfaBankPosition(has_bank_report=False, source_report_title=None,
+                position_text="Прямой аналитический отчёт не найден.", is_official_view=False)
+        sources = [{"filename":c.filename,"page":c.page,"chunk_id":c.chunk_id,
+                    "score":c.score,"extraction_method":c.extraction_method} for c in chunks]
+        excerpts = "\n\n".join(f"{c.filename}, страница {c.page}: {c.text}" for c in chunks)
+        if self.has_live_api:
+            prompt = build_rag_prompt({"title":news.title,"factual_essence":classification.factual_essence},excerpts)
+            try:
+                data = json.loads(self._call_llm(PipelineTask.RAG,prompt['system'],prompt['user']))
+                text = data['bank_official_view']
+                if not isinstance(text,str) or not text.strip(): raise ValueError('Empty RAG response')
+                return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
+                    position_text=text,is_official_view=bool(data.get('has_matching_report')),sources=sources,retrieval_query=query)
+            except (ValueError,KeyError,TypeError):
+                logger.warning('Invalid RAG synthesis JSON; returning excerpts')
+        return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
+            position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query)
 
     def step_4_deep_insight(
         self,
