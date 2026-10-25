@@ -11,7 +11,7 @@ export default function InsightPage() {
   const [card, setCard] = useState<EventCard | null | undefined>(undefined);
 
   useEffect(() => {
-    getFeed().then((f) => setCard(f.events.find((e) => e.card_id === id) ?? null));
+    getFeed(id?.match(/^card-(U_[^-]+)-/)?.[1] ?? "U_14366").then((f) => setCard(f.events.find((e) => e.card_id === id) ?? null));
   }, [id]);
 
   if (card === undefined) return <p className="muted">Загрузка…</p>;

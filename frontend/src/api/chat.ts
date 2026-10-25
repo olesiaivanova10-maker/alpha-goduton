@@ -1,7 +1,7 @@
 import type { ChatRequest, ChatResponse } from '../types/chat';
 import type { EventCard } from '../types/feed';
 
-const USE_MOCK = true;
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 export async function askQuestion(req: ChatRequest, card: EventCard): Promise<ChatResponse> {
   if (USE_MOCK) {
@@ -15,7 +15,7 @@ export async function askQuestion(req: ChatRequest, card: EventCard): Promise<Ch
       sources: card.six_questions.q6_basis_of_conclusion.sources,
     };
   }
-  const res = await fetch('/api/chat', {
+  const res = await fetch('/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),

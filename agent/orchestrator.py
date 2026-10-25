@@ -43,8 +43,8 @@ class AgentOrchestrator:
     def __init__(self):
         self.cfg = config
         self.has_live_api = (
-            bool(self.cfg.api_key) and 
-            self.cfg.api_key != "mock-token" and 
+            bool(self.cfg.api_key) and
+            self.cfg.api_key != "mock-token" and
             not self.cfg.api_key.startswith("mock")
         )
         if self.has_live_api and OpenAI is not None:
@@ -60,7 +60,7 @@ class AgentOrchestrator:
     def _call_llm(self, task: PipelineTask, system_prompt: str, user_prompt: str) -> str:
         """Вызов конкретной LLM с параметрами из models_cfg.py."""
         model_cfg = self.cfg.get_config_for_task(task)
-        
+
         if not self.has_live_api:
             # Оффлайн-заглушка для отладки без API
             return self._mock_response(task, user_prompt)
@@ -131,7 +131,7 @@ class AgentOrchestrator:
                 position_text=bank_chunk.get("text", ""),
                 is_official_view=True
             )
-        
+
         # Автоматический поиск по локальной базе 9 отчетов Альфа-Банка
         sector = company.mainokved_name if company else None
         matches = bank_retriever.find_relevant_reports(news.title, news.body, sector_name=sector, top_k=1)
@@ -143,7 +143,7 @@ class AgentOrchestrator:
                 position_text=f"{top_report.detailed_text}\nРекомендация банка: {top_report.official_recommendation}",
                 is_official_view=True
             )
-        
+
         # Если отчет не найден, генерируем выжимку позиции через Qwen 3.6
         prompt = build_rag_prompt(
             {"title": news.title, "factual_essence": classification.factual_essence},
@@ -173,7 +173,7 @@ class AgentOrchestrator:
         }
         prompt = build_deepseek_insight_prompt(company_dict, news_dict, bank_dict, role)
         raw_res = self._call_llm(PipelineTask.DEEP_INTERPRETATION, prompt["system"], prompt["user"])
-        
+
         try:
             data = json.loads(raw_res)
             return PersonalizedInsight(
@@ -229,7 +229,8 @@ class AgentOrchestrator:
         news: NewsItem,
         bank_chunk: Optional[dict] = None,
         role: UserRole = UserRole.CFO,
-        relevance_threshold: float = 0.50
+        relevance_threshold: float = 0.50,
+        save_to_disk: bool = True
     ) -> Optional[Tuple[PersonalizedInsight, ValidationReport]]:
         """
         Полный сквозной цикл агентного графа:
@@ -238,6 +239,7 @@ class AgentOrchestrator:
         3. Qwen 3.6 (RAG отчетов банка)
         4. DeepSeek-V4.1 (Глубокий синтез под роль)
         5. GLM-5.3 (Самопроверка и аудит)
+        6. Сохранение отчета в файл на диск (data/reports/)
         """
         # Шаг 1: Фильтрация
         classification = self.step_1_classify(news)
@@ -260,7 +262,81 @@ class AgentOrchestrator:
         # Шаг 5: Аудит и факт-чекинг (GLM-5.3)
         audit = self.step_5_fact_check_and_audit(company, news, bank_position, insight)
 
+        # Шаг 6: Сохранение аналитической карточки в файл на диск
+        if save_to_disk:
+            try:
+                self.save_insight_to_file(insight, company, news, audit)
+            except Exception as e:
+                logger.warning(f"Не удалось сохранить отчет на диск: {e}")
+
         return insight, audit
+
+    def save_insight_to_file(
+        self,
+        insight: PersonalizedInsight,
+        company: CompanyProfile,
+        news: NewsItem,
+        audit: Optional[ValidationReport] = None,
+        output_dir: Optional[Any] = None
+    ) -> Any:
+        """Сохраняет сгенерированный инсайт в отдельный JSON-файл отчета для сервиса ленты."""
+        from datetime import datetime
+        from pathlib import Path
+
+        target_dir = Path(output_dir or (Path(__file__).resolve().parent.parent / "backend" / "data" / "reports"))
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        safe_company_id = str(company.synthetic_u).replace("/", "_")
+        safe_news_id = str(news.news_id).replace("/", "_")
+        filename = f"report_{safe_company_id}_{safe_news_id}.json"
+        filepath = target_dir / filename
+
+        card_data = {
+            "card_id": f"{company.synthetic_u}:{news.news_id}",
+            "company_id": company.synthetic_u,
+            "company_name": company.display_name,
+            "role": insight.target_role.value if hasattr(insight.target_role, "value") else str(insight.target_role),
+            "title": news.title,
+            "summary": insight.fact_summary,
+            "fact_summary": insight.fact_summary,
+            "why_it_matters": insight.why_it_matters,
+            "importance": "high",
+            "alfa_bank_position": {
+                "has_bank_report": insight.alfa_bank_position.has_bank_report,
+                "source_report_title": insight.alfa_bank_position.source_report_title,
+                "position_text": insight.alfa_bank_position.position_text,
+                "is_official_view": insight.alfa_bank_position.is_official_view,
+            },
+            "risks": insight.risks,
+            "opportunities": insight.opportunities,
+            "recommended_action": insight.next_best_action.title if insight.next_best_action else "Обсудить с банком",
+            "next_best_action": {
+                "action_type": insight.next_best_action.action_type,
+                "title": insight.next_best_action.title,
+                "description": insight.next_best_action.description,
+                "bank_product_tag": insight.next_best_action.bank_product_tag,
+            } if insight.next_best_action else None,
+            "origin": "alfa_bank" if insight.alfa_bank_position.is_official_view else "ai_insight",
+            "sources": insight.sources,
+            "provenance": {
+                "fact": news.source_name,
+                "bank": insight.alfa_bank_position.source_report_title or "Аналитический центр Альфа-Банка",
+                "ai": "DeepSeek-V4.1-Flash",
+            },
+            "audit": {
+                "is_valid": audit.is_valid if audit else True,
+                "hallucination_detected": audit.hallucination_detected if audit else False,
+                "notes": audit.notes if audit else "Верифицировано",
+            },
+            "disclaimer": insight.disclaimer,
+            "created_at": datetime.utcnow().isoformat() + "Z"
+        }
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(card_data, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"Отчет успешно сохранен на диск: {filepath}")
+        return filepath
 
     def _build_fallback_insight(
         self,

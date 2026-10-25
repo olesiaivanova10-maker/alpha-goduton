@@ -168,28 +168,44 @@ class BankRAGRetriever:
         sector_name: Optional[str] = None,
         top_k: int = 1
     ) -> List[BankReportChunk]:
-        """Ищет наиболее релевантный отчет банка по теме и отрасли."""
-        query = f"{news_title} {news_text} {sector_name or ''}".lower()
-        
+        """
+        Семантический поиск релевантного отчета банка с учетом морфологии русского языка (стемминг).
+        """
+        import re
+
+        def _stem(word: str) -> str:
+            w = re.sub(r"[^\w]", "", word.lower())
+            return w[:5] if len(w) >= 5 else w
+
+        news_full = f"{news_title} {news_text}".lower()
+        news_tokens = {_stem(w) for w in re.findall(r"\w+", news_full) if len(w) >= 3}
+        sector_tokens = {_stem(w) for w in re.findall(r"\w+", (sector_name or "").lower()) if len(w) >= 3}
+
         scored_reports = []
         for rep in self.reports:
             score = 0
-            # Совпадение по отраслям
-            for sector in rep.target_sectors:
-                if sector.lower() in query:
-                    score += 3
-            # Совпадение по макро-темам
+
+            # 1. Приоритет 1: Макро-темы отчета в новости (вес 6 за каждое точное совпадение корня)
             for topic in rep.macro_topics:
-                if topic.lower() in query:
-                    score += 2
-            # Совпадение слов в заголовке отчета
-            for word in rep.report_title.lower().split():
-                if len(word) > 4 and word in query:
-                    score += 1
-            
+                t_tokens = [_stem(w) for w in re.findall(r"\w+", topic.lower()) if len(w) >= 3]
+                matched_t = sum(1 for tok in t_tokens if tok in news_tokens)
+                if matched_t > 0:
+                    score += matched_t * 6
+
+            # 2. Приоритет 2: Заголовок отчета в тексте новости (вес 4)
+            title_tokens = [_stem(w) for w in re.findall(r"\w+", rep.report_title.lower()) if len(w) >= 3]
+            matched_title = sum(1 for tok in title_tokens if tok in news_tokens)
+            score += matched_title * 4
+
+            # 3. Приоритет 3: Отраслевое соответствие клиенту (вес 2)
+            for sector in rep.target_sectors:
+                s_tokens = [_stem(w) for w in re.findall(r"\w+", sector.lower()) if len(w) >= 3]
+                matched_s = sum(1 for tok in s_tokens if tok in sector_tokens)
+                score += matched_s * 2
+
             scored_reports.append((score, rep))
-        
-        # Сортируем по релевантности
+
+        # Сортируем по убыванию очков
         scored_reports.sort(key=lambda x: x[0], reverse=True)
         return [rep for score, rep in scored_reports[:top_k] if score > 0] or [self.reports[0]]
 

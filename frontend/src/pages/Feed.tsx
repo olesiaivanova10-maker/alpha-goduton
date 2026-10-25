@@ -27,8 +27,8 @@ export default function Feed() {
   const [areas, setAreas] = useState<string[]>([]);
 
   useEffect(() => {
-    getFeed().then(setFeed).catch((e) => setError(String(e)));
-  }, []);
+    getFeed(companyId).then(setFeed).catch((e) => setError(String(e)));
+  }, [companyId]);
 
   const allAreas = useMemo(() => {
     const set = new Set<string>();
