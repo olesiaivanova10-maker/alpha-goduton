@@ -45,6 +45,8 @@ app.add_middleware(
 orchestrator = AgentOrchestrator()
 agent_service = AgentService(orchestrator)
 NEWS_CACHE, NEWS_STATUS = load_news()
+from . import news_journal
+news_journal.bootstrap(NEWS_CACHE)
 
 
 class AnalyzeRequest(BaseModel):
@@ -307,6 +309,7 @@ def refresh_news():
         NEWS_CACHE = records
     NEWS_STATUS = status
     save_news(NEWS_CACHE, NEWS_STATUS)
+    news_journal.register(NEWS_CACHE)
     return {"status": "ok", "items_count": len(NEWS_CACHE), "sources": NEWS_STATUS}
 
 
@@ -318,3 +321,21 @@ def report_file(filename: str):
     if path.parent != root.resolve() or path.suffix.lower() != '.pdf' or not path.is_file():
         raise HTTPException(status_code=404,detail="PDF не найден")
     return FileResponse(path,media_type='application/pdf')
+
+
+@app.get("/api/developer", include_in_schema=False)
+def developer_page():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).with_name('developer.html'),media_type='text/html')
+
+
+@app.get("/api/developer/news")
+def developer_news(company_id: str = 'U_14366', role: UserRole = UserRole.CFO, status: str | None = None, search: str = '', limit: int = 50, offset: int = 0):
+    if status and status not in news_journal.STATUSES:
+        raise HTTPException(status_code=422,detail='Неизвестный статус')
+    return news_journal.listing(company_id,role.value,status,search[:200],max(1,min(limit,100)),max(0,offset))
+
+
+@app.get("/api/developer/news/{news_id}/history")
+def developer_news_history(news_id: str, company_id: str = 'U_14366', role: UserRole = UserRole.CFO):
+    return {'items':news_journal.history(news_id,company_id,role.value)}

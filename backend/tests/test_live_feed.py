@@ -36,3 +36,15 @@ class LiveFeedTests(unittest.TestCase):
             live_feed.generate('j3','U_14366','CFO',[record],service)
             self.assertEqual(live_feed.events('U_14366','CFO'),[])
             self.assertEqual(live_feed.job('j3')['status'],'failed')
+            from app import news_journal
+            published=news_journal.listing('U_26030','CFO')['items'][0]
+            self.assertEqual(published['status'],'published')
+            rejected=news_journal.listing('U_14366','CFO')['items'][0]
+            self.assertEqual(rejected['status'],'rejected')
+            self.assertIn('Тест',rejected['reason'])
+            self.assertEqual([x['stage'] for x in news_journal.history('N1','U_14366','CFO')],['classify','relevance','rag','generation','audit','audit'])
+            with patch.object(agent,'step_1_classify',side_effect=RuntimeError('private-key-do-not-log')):
+                live_feed.generate('j4','U_14366','CFO',[record],service)
+            failed=news_journal.listing('U_14366','CFO')['items'][0]
+            self.assertEqual(failed['status'],'error')
+            self.assertNotIn('private-key-do-not-log',failed['reason'])
