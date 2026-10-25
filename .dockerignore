@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/*.pdf
+backend/data
+**/*.db
+frontend/dist
+.vscode
+.DS_Store

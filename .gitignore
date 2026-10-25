@@ -11,3 +11,7 @@ dist/
 backend/data/reports/
 
 test_cases/rag_test_results.txt
+
+.DS_Store
+.vscode/
+frontend/vite.local.config.ts

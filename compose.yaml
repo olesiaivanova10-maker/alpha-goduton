@@ -1,0 +1,44 @@
+name: alpha-hack
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /app/backend/data
+      FEEDBACK_DB_PATH: /app/storage/feedback.db
+    volumes:
+      - ./backend/data:/app/backend/data:ro
+      - ./data_alfbnk:/app/data_alfbnk:ro
+      - backend_storage:/app/storage
+      - reports:/app/backend/data/reports
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8081}:8000"
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+volumes:
+  backend_storage:
+  reports:

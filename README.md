@@ -36,3 +36,27 @@ ai_engineer/
 
 ---
 
+
+## Docker Compose
+
+Docker Desktop должен быть запущен. Из корня проекта:
+
+```bash
+cp -n .env.example .env
+docker compose up --build -d
+docker compose ps
+```
+
+Интерфейс: http://localhost:8080. Swagger: http://localhost:8081/docs.
+Ключи ALFA_HACK_API_KEY и ALFA_HACK_API_BASE задаются в .env и передаются только backend.
+CSV поместите в backend/data/, PDF — в data_alfbnk/. Файлы монтируются только для чтения.
+Feedback и отчёты хранятся в именованных volumes и переживают пересоздание контейнеров.
+
+```bash
+docker compose logs -f --tail=50
+docker compose up -d --force-recreate backend  # после изменения .env
+docker compose down  # остановка без удаления volumes
+```
+
+Порты можно изменить через FRONTEND_PORT и BACKEND_PORT в .env.
+Live API не требуется для старта; наличие ключа само по себе не подключает live-генерацию к статической ленте.
