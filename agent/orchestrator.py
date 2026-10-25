@@ -54,7 +54,8 @@ class AgentOrchestrator:
             self.client = OpenAI(
                 api_key=self.cfg.api_key,
                 base_url=self.cfg.base_url,
-                timeout=self.cfg.timeout_sec
+                timeout=self.cfg.timeout_sec,
+                max_retries=0
             )
         else:
             self.client = None
@@ -76,6 +77,7 @@ class AgentOrchestrator:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
+            timeout=20 if task == PipelineTask.ORCHESTRATOR else self.cfg.timeout_sec,
             response_format={"type": "json_object"} if model_cfg.supports_structured_output else None
         )
         return response.choices[0].message.content
@@ -88,6 +90,8 @@ class AgentOrchestrator:
             data = json.loads(raw_res)
             return NewsClassification(**data)
         except Exception:
+            if self.has_live_api:
+                raise ValueError("Невалидный ответ классификатора")
             return NewsClassification(
                 is_relevant_business_event=True,
                 category="МАКРОЭКОНОМИКА",
@@ -109,6 +113,8 @@ class AgentOrchestrator:
             data = json.loads(raw_res)
             return RelevanceAssessment(**data)
         except Exception:
+            if self.has_live_api:
+                raise ValueError("Невалидный ответ ранжирования")
             # Детерминированный fallback по отрасли и кредитам
             has_debt_sensitivity = company.cl_product_loa and "СТАВКА" in classification.category
             score = 0.90 if has_debt_sensitivity else 0.70
@@ -137,13 +143,13 @@ class AgentOrchestrator:
 
         from .rag.retriever import retrieve_bank_context
         query = f"{news.title} {classification.factual_essence}"
-        chunks = retrieve_bank_context(query, company.model_dump() if company else None, top_k=4)
+        chunks = retrieve_bank_context(query, company.model_dump() if company else None, top_k=2)
         if not chunks:
             return AlfaBankPosition(has_bank_report=False, source_report_title=None,
                 position_text="Прямой аналитический отчёт не найден.", is_official_view=False)
         sources = [{"filename":c.filename,"page":c.page,"chunk_id":c.chunk_id,
                     "score":c.score,"extraction_method":c.extraction_method} for c in chunks]
-        excerpts = "\n\n".join(f"{c.filename}, страница {c.page}: {c.text}" for c in chunks)
+        excerpts = "\n\n".join(f"{c.filename}, страница {c.page}: {c.text[:1200]}" for c in chunks)
         if self.has_live_api:
             prompt = build_rag_prompt({"title":news.title,"factual_essence":classification.factual_essence},excerpts)
             try:
@@ -151,11 +157,11 @@ class AgentOrchestrator:
                 text = data['bank_official_view']
                 if not isinstance(text,str) or not text.strip(): raise ValueError('Empty RAG response')
                 return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
-                    position_text=text,is_official_view=bool(data.get('has_matching_report')),sources=sources,retrieval_query=query)
+                    position_text=text,is_official_view=bool(data.get('has_matching_report')),sources=sources,retrieval_query=query,evidence_text=excerpts)
             except (ValueError,KeyError,TypeError):
                 logger.warning('Invalid RAG synthesis JSON; returning excerpts')
         return AlfaBankPosition(has_bank_report=True,source_report_title=chunks[0].filename,
-            position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query)
+            position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
 
     def step_4_deep_insight(
         self,
@@ -182,15 +188,15 @@ class AgentOrchestrator:
                 target_role=role,
                 fact_summary=data["fact_summary"],
                 why_it_matters=data["why_it_matters"],
-                alfa_bank_position=AlfaBankPosition(**data["alfa_bank_position"]),
+                alfa_bank_position=bank_position,
                 risks=data.get("risks", []),
                 opportunities=data.get("opportunities", []),
                 next_best_action=NextBestAction(**data["next_best_action"]),
-                sources=data.get("sources", [news.source_name]),
+                sources=([news.source_url or news.source_name] + [x["filename"] for x in bank_position.sources]),
                 disclaimer="Не является индивидуальной инвестиционной рекомендацией"
             )
         except Exception:
-            return self._build_fallback_insight(company, news, bank_position, role)
+            raise ValueError("Модель не вернула валидный персонализированный инсайт")
 
     def step_5_fact_check_and_audit(
         self,
@@ -201,27 +207,24 @@ class AgentOrchestrator:
     ) -> ValidationReport:
         """Шаг 5 (GLM-5.3): Проверка фактологии, отсутствия галлюцинаций и наличия дисклеймера."""
         prompt = build_verification_prompt(
-            news_text=f"{news.title}\n{news.body}",
-            bank_context=bank_position.position_text,
-            company_context=f"{company.display_name}, ОКВЭД: {company.mainokved_name}, Кредиты: {company.cl_product_loa}",
+            news_text=f"Дата проверки: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).date().isoformat()}. Дата публикации: {news.published_at or 'не указана'}.\n{news.title}\n{news.body}",
+            bank_context=bank_position.model_dump_json(),
+            company_context="FTS_FLAG означает наличие данных внешней торговли; FTS_COUNTRY_NAME — известные страны ВЭД, но не направление и не валюта. Кредитный продукт не доказывает размер долга.\n"+company.model_dump_json(),
             insight_json=insight.model_dump_json(indent=2)
         )
-        raw_res = self._call_llm(PipelineTask.ORCHESTRATOR, prompt["system"], prompt["user"])
-        try:
-            data = json.loads(raw_res)
-            return ValidationReport(
-                is_valid=data.get("is_valid", True),
-                hallucination_detected=data.get("hallucination_detected", False),
-                notes=data.get("audit_comment", "Проверка пройдена успешно.")
-            )
-        except Exception:
-            # Детерминированная проверка ключевых условий
-            has_disclaimer = "Не является индивидуальной инвестиционной рекомендацией" in insight.disclaimer
-            return ValidationReport(
-                is_valid=has_disclaimer,
-                hallucination_detected=False,
-                notes="Автоматический аудит: структура и юридический дисклеймер подтверждены."
-            )
+        last_error = None
+        for task in (PipelineTask.ORCHESTRATOR, PipelineTask.CLASSIFICATION):
+            try:
+                raw_res = self._call_llm(task, prompt["system"], prompt["user"])
+                data = json.loads(raw_res)
+                if type(data.get('is_valid')) is not bool or type(data.get('hallucination_detected')) is not bool:
+                    raise ValueError('Audit verdict missing')
+                prefix = 'Резервный аудит Gemma: ' if task == PipelineTask.CLASSIFICATION else ''
+                return ValidationReport(is_valid=data['is_valid'],hallucination_detected=data['hallucination_detected'],notes=prefix+str(data.get('audit_comment','')))
+            except Exception as error:
+                last_error = type(error).__name__
+        return ValidationReport(is_valid=False,hallucination_detected=False,
+            notes=f'Аудит недоступен ({last_error}); публикация заблокирована.')
 
     def run_pipeline(
         self,

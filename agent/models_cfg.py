@@ -59,7 +59,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.CLASSIFICATION,
         model=ModelName.GEMMA_4,
         temperature=0.1,
-        max_tokens=512,
+        max_tokens=6000,
         supports_structured_output=True,
         why="Дешевизна, скорость обработки, бинарный отсев."
     ),
@@ -68,7 +68,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.RELEVANCE,
         model=ModelName.GEMMA_4,
         temperature=0.1,
-        max_tokens=512,
+        max_tokens=6000,
         supports_structured_output=True,
         why="Быстрое сопоставление эмбеддингов профиля компании и новости без траты токенов LLM."
     ),
@@ -77,7 +77,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.RAG,
         model=ModelName.QWEN_3_6,
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=6000,
         supports_structured_output=True,
         why=(
             "- Лучшая работа с русским языком\n"
@@ -90,7 +90,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.DEEP_INTERPRETATION,
         model=ModelName.DEEPSEEK_V4_1,
         temperature=0.3,
-        max_tokens=2048,
+        max_tokens=6000,
         supports_structured_output=True,
         why=(
             "- DeepSeek сильнее в математических и финансовых рассуждениях, чем GLM\n"
@@ -103,7 +103,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.ORCHESTRATOR,
         model=ModelName.GLM_5_3,
         temperature=0.1,
-        max_tokens=1024,
+        max_tokens=6000,
         supports_structured_output=True,
         why=(
             "- GLM от Zhipu AI исторически лучше в function calling и структурированных задачах\n"
@@ -115,7 +115,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.INTERACTIVE_CHAT,
         model=ModelName.QWEN_3_6,
         temperature=0.4,
-        max_tokens=1024,
+        max_tokens=6000,
         supports_structured_output=False,
         why="Отличная русскоязычная связность и универсальность для диалогов."
     ),

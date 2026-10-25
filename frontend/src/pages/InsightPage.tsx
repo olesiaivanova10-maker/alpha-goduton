@@ -76,7 +76,7 @@ export default function InsightPage() {
                 {s.url_or_file?.startsWith('http') ? (
                   <a href={s.url_or_file} target="_blank" rel="noreferrer">{s.name}</a>
                 ) : (
-                  s.name
+                  s.url_or_file?.endsWith('.pdf') ? <a href={`/api/reports/files/${encodeURIComponent(s.url_or_file)}#page=${s.page || 1}`} target="_blank" rel="noreferrer">{s.name}</a> : s.name
                 )}
                 {s.page ? `, стр. ${s.page}` : ''}
               </li>

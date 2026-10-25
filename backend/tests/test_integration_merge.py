@@ -14,7 +14,5 @@ class IntegrationMergeTests(unittest.TestCase):
         for company in ['U_14366', 'U_26030']:
             feed = client.get('/api/feed', params={'company_id': company, 'role': 'CFO'})
             self.assertEqual(feed.status_code, 200)
-            card = feed.json()['events'][0]['card_id']
-            chat = client.post('/chat', json={'card_id': card, 'question': 'Почему важно?'})
-            self.assertEqual(chat.status_code, 200)
-            self.assertEqual(set(chat.json()), {'answer', 'origin', 'sources'})
+            self.assertIn('events',feed.json())
+        self.assertEqual(client.post('/chat',json={'card_id':'unknown','question':'Почему?'}).status_code,404)

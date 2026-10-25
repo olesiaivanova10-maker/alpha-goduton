@@ -43,11 +43,13 @@ def index_pdf_directory(directory: str | Path = "data_alfbnk") -> list[RagChunk]
             continue
     _INDEX=chunks; _INDEXED=True; return chunks
 
-def retrieve_bank_context(query: str, company: dict | None = None, top_k: int = 8) -> list[RagChunk]:
+def retrieve_bank_context(query: str, company: dict | None = None, top_k: int = 8, filenames: list[str] | None = None) -> list[RagChunk]:
     if not _INDEXED: index_pdf_directory()
     profile=" ".join(str(v) for v in (company or {}).values()).lower()
     words=set(re.findall(r"[а-яa-z0-9]{4,}", f"{query} {profile}".lower())); ranked=[]
     for chunk in _INDEX:
+        if filenames is not None and chunk.filename not in filenames:
+            continue
         tokens=set(re.findall(r"[а-яa-z0-9]{4,}", chunk.text.lower())); overlap=len(words & tokens); score=overlap/max(len(words),1)
         if score: ranked.append((score,chunk))
     ranked.sort(key=lambda item:item[0], reverse=True)

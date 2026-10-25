@@ -74,6 +74,7 @@ class AlfaBankPosition(BaseModel):
     is_official_view: bool = Field(default=True, description="True если из отчета, False если гипотеза AI")
     sources: list[dict] = Field(default_factory=list)
     retrieval_query: Optional[str] = None
+    evidence_text: Optional[str] = None
 
 
 class NextBestAction(BaseModel):

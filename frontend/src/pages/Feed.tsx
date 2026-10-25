@@ -22,6 +22,8 @@ export default function Feed() {
   const [error, setError] = useState<string | null>(null);
 
   const [companyId, setCompanyId] = useState(CLIENTS[0].id);
+  const [generation, setGeneration] = useState('');
+  const [busy, setBusy] = useState(false);
   const [sort, setSort] = useState<SortKey>('critical');
   const [onlyCritical, setOnlyCritical] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
@@ -29,6 +31,27 @@ export default function Feed() {
   useEffect(() => {
     getFeed(companyId).then(setFeed).catch((e) => setError(String(e)));
   }, [companyId]);
+
+  async function generateLive() {
+    setBusy(true); setGeneration('Анализируем свежие новости и проверяем источники…');
+    try {
+      const response = await fetch(`/api/feed/refresh?company_id=${encodeURIComponent(companyId)}&role=CFO&limit=2`, {method:'POST'});
+      const task = await response.json();
+      if (!response.ok) throw new Error(task.detail || 'Не удалось запустить анализ');
+      for (let i=0; i<180; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const state = await (await fetch(`/api/feed/jobs/${task.job_id}`)).json();
+        if (state.detail?.stage) setGeneration(state.detail.stage);
+        if (state.status === 'completed' || state.status === 'failed') {
+          setFeed(await getFeed(companyId));
+          setGeneration(state.status === 'completed' ? `Опубликовано проверенных карточек: ${state.detail.published}` : 'Карточки не опубликованы: модель или проверка качества не дали подтверждённого результата.');
+          return;
+        }
+      }
+      setGeneration('Анализ продолжается. Обновите ленту позднее.');
+    } catch (e) { setGeneration(String(e)); }
+    finally { setBusy(false); }
+  }
 
   const allAreas = useMemo(() => {
     const set = new Set<string>();
@@ -72,6 +95,9 @@ export default function Feed() {
   return (
     <>
       <h1>Новостная аналитика</h1>
+      <button disabled={busy} onClick={generateLive}>{busy ? 'Идёт анализ…' : 'Сформировать живую ленту'}</button>
+      {generation && <p className="muted">{generation}</p>}
+      {feed.total_events === 0 && <p className="muted">Проверенных инсайтов пока нет. Запустите анализ свежих новостей.</p>}
       <p className="muted">
         {feed.company_name} · роль: {feed.target_role} · событий: {feed.total_events}, критичных:{' '}
         {feed.critical_events_count}
@@ -79,7 +105,7 @@ export default function Feed() {
 
       <label className="sort">
         <span className="muted small">Клиент</span>
-        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+        <select disabled={busy} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
           {CLIENTS.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
