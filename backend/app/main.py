@@ -215,7 +215,7 @@ def interactive_qa_chat(req: ChatRequest):
         system_prompt=prompt["system"],
         user_prompt=prompt["user"]
     )
-    
+
     if not reply_text or reply_text == "{}":
         reply_text = (
             f"Учитывая профиль вашей компании ({company_summary}), изменение рыночных условий "
