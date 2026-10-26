@@ -1,0 +1,6 @@
+{
+  "queries": 4,
+  "Recall@k": 1.0,
+  "page_precision": 0.20000000000000004,
+  "no_answer_accuracy": 1.0
+}

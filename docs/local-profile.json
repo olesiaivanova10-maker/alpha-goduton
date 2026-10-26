@@ -1,0 +1,10 @@
+{
+  "news": 1000,
+  "companies": 10,
+  "csv_mode": "csv",
+  "rss_parse_ms": 15.74,
+  "profile_mean_ms": 55.85,
+  "presort_mean_ms": 11.14,
+  "model_calls": 0,
+  "scope": "Preprocessing only; no inference, DB-load or concurrent production SLO claim"
+}

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Button } from '@alfalab/core-components/button';
-import { submitAction } from '../api/action';
 import type { EventCard } from '../types/feed';
 import OriginBadge from './OriginBadge';
 
@@ -13,7 +12,7 @@ export default function ActionBlock({ card }: { card: EventCard }) {
   async function confirm() {
     setStatus('sending');
     try {
-      await submitAction({ card_id: card.card_id, action_type: a.action_type });
+      await navigator.clipboard.writeText(`${card.title}\n${a.title}\n${a.description}\nКарточка: ${card.card_id}`);
       setStatus('done');
     } catch {
       setStatus('error');
@@ -30,14 +29,14 @@ export default function ActionBlock({ card }: { card: EventCard }) {
 
       <div className="action-row">
         {status === 'done' ? (
-          <p className="opp">Заявка отправлена. Менеджер свяжется с вами.</p>
+          <p className="opp">Текст для обсуждения скопирован. Передайте его своему менеджеру.</p>
         ) : (
           <Button view="accent" onClick={() => setStatus('confirm')}>
-            {a.button_text}
+            Подготовить вопрос менеджеру
           </Button>
         )}
         {status === 'error' && (
-          <p className="risk">Не удалось отправить заявку. Попробуйте еще раз.</p>
+          <p className="risk">Не удалось скопировать текст. Выделите и скопируйте описание выше.</p>
         )}
       </div>
 
@@ -48,7 +47,7 @@ export default function ActionBlock({ card }: { card: EventCard }) {
             <h3>{a.title}</h3>
             <p className="muted">{a.description}</p>
             <p className="muted small">
-              Заявка будет передана менеджеру Альфа-Банка. Вы не берете на себя обязательств.
+              Это прототип: автоматической отправки в банк нет. Скопируйте текст и передайте менеджеру самостоятельно.
             </p>
             <div className="modal-actions">
               <button
@@ -59,7 +58,7 @@ export default function ActionBlock({ card }: { card: EventCard }) {
                 Отмена
               </button>
               <Button view="accent" onClick={confirm} loading={status === 'sending'}>
-                Отправить заявку
+                Скопировать текст
               </Button>
             </div>
           </div>

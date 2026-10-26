@@ -11,3 +11,21 @@ dist/
 backend/data/reports/
 
 test_cases/rag_test_results.txt
+
+.DS_Store
+.vscode/
+frontend/vite.local.config.ts
+
+backend/data/news.json
+data_alfbnk/*.pages.json
+
+# Private data and local model artifacts are provisioned separately.
+data_alfbnk/*.pdf
+models/
+*.dump
+team-access.txt
+server-certificate.crt
+ENV.local
+
+.env.submission
+submission-evidence/

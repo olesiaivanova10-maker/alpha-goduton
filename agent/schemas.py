@@ -26,6 +26,9 @@ class CompanyProfile(BaseModel):
     city: Optional[str] = None
     region: Optional[str] = None
     
+    relationship_summary: dict = Field(default_factory=dict)
+    data_warnings: List[str] = Field(default_factory=list)
+
     # Банковские продукты
     cl_product_rko: bool = Field(default=True, description="Наличие РКО")
     cl_product_gar: bool = Field(default=False, description="Банковские гарантии")
@@ -36,7 +39,7 @@ class CompanyProfile(BaseModel):
     factoring_mark: bool = Field(default=False, description="Факторинг")
     
     # ВЭД
-    fts_flag: bool = Field(default=False, description="Участие во внешнеэкономической деятельности")
+    fts_flag: bool = Field(default=False, description="Наличие данных ФТС; не доказывает направление, валюту или текущую активность")
     fts_country_name: Optional[str] = Field(None, description="Страны ВЭД (Китай, Индия, ОАЭ и т.д.)")
 
 
@@ -68,10 +71,14 @@ class RelevanceAssessment(BaseModel):
 
 class AlfaBankPosition(BaseModel):
     """Экспертная позиция Центра макроэкономических исследований Альфа-Банка (Task #4)."""
+    synthesis_status: str = "no_sources"
     has_bank_report: bool = Field(..., description="Есть ли релевантный макро-отчет банка")
     source_report_title: Optional[str] = Field(None, description="Название отчета банка")
     position_text: str = Field(..., description="Позиция банка по данному событию")
     is_official_view: bool = Field(default=True, description="True если из отчета, False если гипотеза AI")
+    sources: list[dict] = Field(default_factory=list)
+    retrieval_query: Optional[str] = None
+    evidence_text: Optional[str] = None
 
 
 class NextBestAction(BaseModel):
@@ -111,3 +118,9 @@ class ValidationReport(BaseModel):
     is_valid: bool
     hallucination_detected: bool
     notes: str
+
+
+class RagSynthesis(BaseModel):
+    has_matching_report: bool = Field(strict=True)
+    bank_official_view: str = Field(min_length=1,max_length=10000)
+    citation_ids: list[str] = Field(default_factory=list)

@@ -19,14 +19,17 @@ from pydantic import BaseModel, Field
 
 class ModelName(str, Enum):
     """Идентификаторы утвержденных правилами хакатона моделей."""
-    GEMMA_4 = "gemma-4-26b-a4b"
-    QWEN_3_6 = "qwen-3.6-35b-a3b"
-    DEEPSEEK_V4_1 = "deepseek-v4.1-flash"
-    GLM_5_3 = "glm-5.3-flash"
+    GEMMA_4 = "google/gemma-4-26b-a4b-it"
+    QWEN_3_6 = "qwen/qwen3.6-35b-a3b"
+    DEEPSEEK_V4_1 = "deepseek/deepseek-v4.1-flash"
+    GLM_5_3 = "z-ai/glm-5.3-flash"
     
+    QWEN_VISION = "qwen/qwen3-vl-30b-a3b-instruct"
+    KIMI = "moonshotai/kimi-k2.6"
+
     # Вспомогательные локальные модели для эмбеддингов/реранкинга
     BGE_EMBEDDINGS = "BAAI/bge-m3"
-    BGE_RERANKER = "BAAI/bge-reranker-large"
+    BGE_RERANKER = "BAAI/bge-reranker-v2-m3"
 
 
 class PipelineTask(str, Enum):
@@ -45,6 +48,7 @@ class ModelTaskConfig(BaseModel):
     temperature: float = Field(default=0.2, ge=0.0, le=1.0)
     max_tokens: int = Field(default=1024)
     supports_structured_output: bool = True
+    provider_options: dict = Field(default_factory=dict)
     why: str = Field(..., description="Обоснование выбора модели из архитектурного решения команды")
 
 
@@ -56,7 +60,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.CLASSIFICATION,
         model=ModelName.GEMMA_4,
         temperature=0.1,
-        max_tokens=512,
+        max_tokens=2000,
         supports_structured_output=True,
         why="Дешевизна, скорость обработки, бинарный отсев."
     ),
@@ -65,16 +69,17 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         task=PipelineTask.RELEVANCE,
         model=ModelName.GEMMA_4,
         temperature=0.1,
-        max_tokens=512,
+        max_tokens=2000,
         supports_structured_output=True,
-        why="Быстрое сопоставление эмбеддингов профиля компании и новости без траты токенов LLM."
+        why="Оценка связи новости с признаками клиента; это реальный вызов LLM."
     ),
     
     PipelineTask.RAG: ModelTaskConfig(
         task=PipelineTask.RAG,
         model=ModelName.QWEN_3_6,
+        provider_options={"reasoning":{"effort":"none"}},
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=2000,
         supports_structured_output=True,
         why=(
             "- Лучшая работа с русским языком\n"
@@ -86,8 +91,9 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
     PipelineTask.DEEP_INTERPRETATION: ModelTaskConfig(
         task=PipelineTask.DEEP_INTERPRETATION,
         model=ModelName.DEEPSEEK_V4_1,
+        provider_options={"reasoning":{"effort":"low"}},
         temperature=0.3,
-        max_tokens=2048,
+        max_tokens=3000,
         supports_structured_output=True,
         why=(
             "- DeepSeek сильнее в математических и финансовых рассуждениях, чем GLM\n"
@@ -99,8 +105,9 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
     PipelineTask.ORCHESTRATOR: ModelTaskConfig(
         task=PipelineTask.ORCHESTRATOR,
         model=ModelName.GLM_5_3,
+        provider_options={"reasoning":{"effort":"low"}},
         temperature=0.1,
-        max_tokens=1024,
+        max_tokens=1000,
         supports_structured_output=True,
         why=(
             "- GLM от Zhipu AI исторически лучше в function calling и структурированных задачах\n"
@@ -111,8 +118,9 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
     PipelineTask.INTERACTIVE_CHAT: ModelTaskConfig(
         task=PipelineTask.INTERACTIVE_CHAT,
         model=ModelName.QWEN_3_6,
+        provider_options={"reasoning":{"effort":"none"}},
         temperature=0.4,
-        max_tokens=1024,
+        max_tokens=2000,
         supports_structured_output=False,
         why="Отличная русскоязычная связность и универсальность для диалогов."
     ),
@@ -124,7 +132,7 @@ class AIConfig:
     
     def __init__(self):
         self.api_key: str = os.getenv("ALFA_HACK_API_KEY", os.getenv("OPENAI_API_KEY", "mock-token"))
-        self.base_url: str = os.getenv("ALFA_HACK_API_BASE", "https://api.alfa-hack.ru/v1")
+        self.base_url: str = os.getenv("ALFA_HACK_API_BASE", "https://changellenge.up.railway.app/v1")
         self.timeout_sec: float = float(os.getenv("ALFA_API_TIMEOUT", "45.0"))
         self.max_retries: int = int(os.getenv("ALFA_API_RETRIES", "3"))
 

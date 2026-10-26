@@ -1,0 +1,93 @@
+{
+  "rss": {
+    "job_id": "67f0378299174dfa9742a1ac4930c349",
+    "status": "completed",
+    "detail": {
+      "items_count": 613,
+      "sources": {
+        "loaded": [
+          "ТАСС",
+          "РИА Новости",
+          "Интерфакс",
+          "Коммерсантъ",
+          "Банк России"
+        ],
+        "failed": [],
+        "counts": {
+          "ТАСС": 99,
+          "РИА Новости": 98,
+          "Интерфакс": 25,
+          "Коммерсантъ": 294,
+          "Банк России": 100
+        }
+      }
+    },
+    "company_id": null,
+    "kind": "rss",
+    "payload": {}
+  },
+  "article": {
+    "news_id": "9bb61a561e015440acd82295aa8f41bd",
+    "title": "Moody's оставило кредитный рейтинг Франции на уровне \"Aa3\" с \"негативным\" прогнозом",
+    "source_name": "Интерфакс",
+    "source_url": "https://www.interfax.ru/business/1124976"
+  },
+  "companies": [
+    {
+      "company_id": "U_14366",
+      "job": {
+        "job_id": "725f7ac7d32e41b0a5669020b4a2892c",
+        "status": "failed",
+        "detail": {
+          "published": 0,
+          "failures": []
+        },
+        "company_id": "U_14366",
+        "kind": "analyze",
+        "payload": {
+          "company_id": "U_14366",
+          "role": "CFO",
+          "records": [
+            {
+              "news_id": "manual-d172d7e8cc166e98b9b3ddd952fb5906fb86239e3ff9c953ad4d8be15eabdb69",
+              "title": "Moody's оставило кредитный рейтинг Франции на уровне \"Aa3\" с \"негативным\" прогнозом",
+              "body": "Международное рейтинговое агентство Moody's Ratings по итогам периодического пересмотра сохранило кредитный рейтинг Франции на уровне \"Aa3\" с \"негативным\" прогнозом.",
+              "source_name": "Интерфакс",
+              "source_url": "https://www.interfax.ru/business/1124976",
+              "published_at": "2026-10-26T08:25:00+00:00"
+            }
+          ]
+        }
+      },
+      "events": []
+    },
+    {
+      "company_id": "U_26030",
+      "job": {
+        "job_id": "04da85214be34769814cde58b44dbf00",
+        "status": "failed",
+        "detail": {
+          "published": 0,
+          "failures": []
+        },
+        "company_id": "U_26030",
+        "kind": "analyze",
+        "payload": {
+          "company_id": "U_26030",
+          "role": "CFO",
+          "records": [
+            {
+              "news_id": "manual-6c2078420778992db89a9e3bd75cd7ec3ebb87fad43ebff658dee1011aca0bfe",
+              "title": "Moody's оставило кредитный рейтинг Франции на уровне \"Aa3\" с \"негативным\" прогнозом",
+              "body": "Международное рейтинговое агентство Moody's Ratings по итогам периодического пересмотра сохранило кредитный рейтинг Франции на уровне \"Aa3\" с \"негативным\" прогнозом.",
+              "source_name": "Интерфакс",
+              "source_url": "https://www.interfax.ru/business/1124976",
+              "published_at": "2026-10-26T08:25:00+00:00"
+            }
+          ]
+        }
+      },
+      "events": []
+    }
+  ]
+}

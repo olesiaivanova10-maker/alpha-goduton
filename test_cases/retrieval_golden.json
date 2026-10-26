@@ -1,0 +1,6 @@
+[
+ {"query":"Почему 11 сентября ЦБ оставил ставку без изменения и ужесточил риторику?","expected_pages":[["ALFA-Macro_Insights-Policy_Rate_11Sep.pdf",1]],"label_basis":"Review of OCR text on report page 1; not an expert relevance assessment"},
+ {"query":"Почему аналитики ждут охлаждение потребительского спроса в четвертом квартале 2026?","expected_pages":[["ALFA-consumption.pdf",1]],"label_basis":"Review of OCR text on report page 1"},
+ {"query":"Как изменился прогноз роста ВВП после слабого первого полугодия 2026?","expected_pages":[["ALFA-macro_stat1H26.pdf",1]],"label_basis":"Review of OCR text on report page 1"},
+ {"query":"Какой размер задолженности и индивидуальный график платежей компании U_26030?","expected_pages":[],"label_basis":"Public macro reports cannot establish the anonymized company's individual loan contract"}
+]

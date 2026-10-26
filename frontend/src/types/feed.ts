@@ -39,6 +39,7 @@ export interface SixQuestionsCard {
     origin: ContentOrigin;
     text: string;
     has_report: boolean;
+    bank_excerpts?: {text: string; filename: string; page: number; report_date?: string | null; extraction_method: string}[];
     report_title?: string | null;
     source_file?: string | null;
   };
@@ -74,6 +75,7 @@ export interface EventCard {
   client_features: ClientFeaturesSummary;
   six_questions: SixQuestionsCard;
   disclaimer: string;
+  analysis_status?: string;
 }
 
 export interface NewsFeedResponse {

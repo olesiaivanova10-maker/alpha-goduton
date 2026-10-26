@@ -1,0 +1,12 @@
+{
+  "card_digests": {
+    "card-U_26030-9325bbb7c762e2dcd06a": "e3bf3c2707f01e3107c75412997d2ba97a2dc13dc4075c2191ba97098d18bf11",
+    "card-U_14366-e1dab1213e5f5428bf4f": "7c7907a4991d24672236fab7bea83cb9411fcad043eedcd58f8ac848adaa0bc2"
+  },
+  "feedback_metrics": {
+    "count": 1,
+    "average_rating": 3.0,
+    "positive_share": 0.0
+  },
+  "restart_persistence": "passed"
+}

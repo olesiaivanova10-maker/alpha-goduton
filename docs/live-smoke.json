@@ -1,0 +1,54 @@
+{
+  "checked_at": 1792927917.218118,
+  "items": [
+    {
+      "task": "classification_and_filtering",
+      "model": "google/gemma-4-26b-a4b-it",
+      "status": "ok",
+      "latency_ms": 4450,
+      "last_checked_at": "2026-10-25T11:31:57.218135+00:00",
+      "error": null
+    },
+    {
+      "task": "relevance_assessment",
+      "model": "google/gemma-4-26b-a4b-it",
+      "status": "ok",
+      "latency_ms": 4450,
+      "last_checked_at": "2026-10-25T11:31:57.218135+00:00",
+      "error": null
+    },
+    {
+      "task": "rag_retrieval_and_synthesis",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "status": "ok",
+      "latency_ms": 10012,
+      "last_checked_at": "2026-10-25T11:32:01.668546+00:00",
+      "error": null
+    },
+    {
+      "task": "deep_interpretation",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "status": "ok",
+      "latency_ms": 4331,
+      "last_checked_at": "2026-10-25T11:32:11.680234+00:00",
+      "error": null
+    },
+    {
+      "task": "orchestrator_and_verification",
+      "model": "z-ai/glm-5.3-flash",
+      "status": "ok",
+      "latency_ms": 4814,
+      "last_checked_at": "2026-10-25T11:32:16.011304+00:00",
+      "error": null
+    },
+    {
+      "task": "interactive_qa_chat",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "status": "ok",
+      "latency_ms": 10012,
+      "last_checked_at": "2026-10-25T11:32:01.668546+00:00",
+      "error": null
+    }
+  ],
+  "cached": false
+}

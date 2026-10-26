@@ -1,0 +1,7 @@
+services:
+  backend:
+    volumes:
+      - ./tests:/tests:ro
+      - ./backend/tests:/unit-tests:ro
+    environment:
+      ADMIN_API_KEY: local-fixture-admin

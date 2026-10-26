@@ -1,0 +1,4 @@
+# Optional CPU model artifacts: install explicitly in the worker image.
+sentence-transformers==5.1.1
+pdfplumber==0.11.7
+sentencepiece==0.2.1

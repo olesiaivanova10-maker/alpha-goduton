@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getFeed } from '../api/feed';
 import ChatPanel from '../components/ChatPanel';
 import type { EventCard } from '../types/feed';
 import ActionBlock from '../components/ActionBlock';
 import OriginBadge from '../components/OriginBadge';
+import Feedback from '../components/Feedback';
 
 export default function InsightPage() {
   const { id } = useParams();
   const [card, setCard] = useState<EventCard | null | undefined>(undefined);
 
   useEffect(() => {
-    getFeed(id?.match(/^card-(U_[^-]+)-/)?.[1] ?? "U_14366").then((f) => setCard(f.events.find((e) => e.card_id === id) ?? null));
+    fetch(`/api/cards/${encodeURIComponent(id || '')}`).then(r => {if (!r.ok) throw new Error(); return r.json();}).then(setCard).catch(() => setCard(null));
   }, [id]);
 
   if (card === undefined) return <p className="muted">Загрузка…</p>;
@@ -23,6 +23,8 @@ export default function InsightPage() {
     <>
       <Link to="/news" className="muted">← К ленте</Link>
       <h1>{card.title}</h1>
+      <p className="muted small">Сохранённый разбор: после обновления данных или моделей его выводы могут отличаться от новой ленты.</p>
+      {card.analysis_status === 'degraded' && <p className="warn">Сводка PDF моделью недоступна. Разбор прошёл аудит с исходными фрагментами документов; сверяйте цифры с PDF.</p>}
 
       <section className="card">
         <h3>{q.q1_what_happened.question}</h3>
@@ -41,17 +43,15 @@ export default function InsightPage() {
         </div>
       </section>
 
-      <ActionBlock card={card} />
-
       <section className="card">
-        <h3>{q.q5_recommended_actions.question}</h3>
-        <OriginBadge origin={q.q5_recommended_actions.origin} />
-        <h4>{q.q5_recommended_actions.title}</h4>
-        <p>{q.q5_recommended_actions.description}</p>
-        {q.q5_recommended_actions.bank_product_tag && (
-          <span className="chip">{q.q5_recommended_actions.bank_product_tag}</span>
-        )}
+        <h3>{q.q4_consequences.question}</h3>
+        <OriginBadge origin={q.q4_consequences.origin} />
+        <h4>Риски</h4>
+        <ul>{q.q4_consequences.risks.map((r) => <li key={r}>{r}</li>)}</ul>
+        <h4>Возможности</h4>
+        <ul>{q.q4_consequences.opportunities.map((r) => <li key={r}>{r}</li>)}</ul>
       </section>
+      <ActionBlock card={card} />
 
       <section className="card bank">
         <h3>{q.q3_bank_evaluation.question}</h3>
@@ -59,6 +59,15 @@ export default function InsightPage() {
         {q.q3_bank_evaluation.has_report ? (
           <>
             {q.q3_bank_evaluation.report_title && <h4>{q.q3_bank_evaluation.report_title}</h4>}
+            {(q.q3_bank_evaluation.bank_excerpts ?? []).map((e, i) => (
+              <div key={i}>
+                <b>Материал Альфа-Банка · {e.filename}, стр. {e.page}</b>
+                <p className="muted small">Дата отчёта: {e.report_date || 'не установлена'}. {e.extraction_method === 'ocr' ? 'Текст распознан: цифры следует сверять с PDF.' : 'Текст извлечён из PDF.'} Исторический материал не является новой рекомендацией.</p>
+                <blockquote>{e.text}</blockquote>
+                <a href={`/api/reports/files/${encodeURIComponent(e.filename)}#page=${e.page}`} target="_blank" rel="noreferrer">Открыть страницу первоисточника</a>
+              </div>
+            ))}
+            <h4>Интерпретация материала моделью</h4>
             <p>{q.q3_bank_evaluation.text}</p>
           </>
         ) : (
@@ -76,7 +85,7 @@ export default function InsightPage() {
                 {s.url_or_file?.startsWith('http') ? (
                   <a href={s.url_or_file} target="_blank" rel="noreferrer">{s.name}</a>
                 ) : (
-                  s.name
+                  s.url_or_file?.endsWith('.pdf') ? <a href={`/api/reports/files/${encodeURIComponent(s.url_or_file)}#page=${s.page || 1}`} target="_blank" rel="noreferrer">{s.name}</a> : s.name
                 )}
                 {s.page ? `, стр. ${s.page}` : ''}
               </li>
@@ -92,6 +101,7 @@ export default function InsightPage() {
       </section>
 
       <p className="muted small">{card.disclaimer}</p>
+      <Feedback cardId={card.card_id} />
       <ChatPanel card={card} />
     </>
   );

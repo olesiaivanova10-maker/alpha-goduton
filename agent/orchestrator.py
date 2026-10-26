@@ -14,6 +14,7 @@
 
 import json
 import logging
+from urllib.parse import urlsplit
 from typing import Dict, Any, Optional, Tuple
 try:
     from openai import OpenAI
@@ -43,6 +44,8 @@ class AgentOrchestrator:
     def __init__(self):
         self.cfg = config
         self.has_live_api = (
+            urlsplit(self.cfg.base_url).scheme in {"https", "http"} and
+            bool(urlsplit(self.cfg.base_url).hostname) and
             bool(self.cfg.api_key) and
             self.cfg.api_key != "mock-token" and
             not self.cfg.api_key.startswith("mock")
@@ -51,7 +54,8 @@ class AgentOrchestrator:
             self.client = OpenAI(
                 api_key=self.cfg.api_key,
                 base_url=self.cfg.base_url,
-                timeout=self.cfg.timeout_sec
+                timeout=self.cfg.timeout_sec,
+                max_retries=0
             )
         else:
             self.client = None
@@ -65,17 +69,9 @@ class AgentOrchestrator:
             # Оффлайн-заглушка для отладки без API
             return self._mock_response(task, user_prompt)
 
-        response = self.client.chat.completions.create(
-            model=model_cfg.model.value,
-            temperature=model_cfg.temperature,
-            max_tokens=model_cfg.max_tokens,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"} if model_cfg.supports_structured_output else None
-        )
-        return response.choices[0].message.content
+        from backend.app.model_gateway import call
+        return call(self.client,task,model_cfg,system_prompt,user_prompt,
+                    20 if task == PipelineTask.ORCHESTRATOR else self.cfg.timeout_sec)
 
     def step_1_classify(self, news: NewsItem) -> NewsClassification:
         """Шаг 1 (Gemma 4): Фильтрация и извлечение сути события."""
@@ -85,6 +81,8 @@ class AgentOrchestrator:
             data = json.loads(raw_res)
             return NewsClassification(**data)
         except Exception:
+            if self.has_live_api:
+                raise ValueError("Невалидный ответ классификатора")
             return NewsClassification(
                 is_relevant_business_event=True,
                 category="МАКРОЭКОНОМИКА",
@@ -106,6 +104,8 @@ class AgentOrchestrator:
             data = json.loads(raw_res)
             return RelevanceAssessment(**data)
         except Exception:
+            if self.has_live_api:
+                raise ValueError("Невалидный ответ ранжирования")
             # Детерминированный fallback по отрасли и кредитам
             has_debt_sensitivity = company.cl_product_loa and "СТАВКА" in classification.category
             score = 0.90 if has_debt_sensitivity else 0.70
@@ -124,38 +124,37 @@ class AgentOrchestrator:
         bank_chunk: Optional[dict] = None
     ) -> AlfaBankPosition:
         """Шаг 3 (Qwen 3.6 + BGE): RAG-поиск экспертной позиции Альфа-Банка."""
+        # Legacy supplied context is not proof of an official bank position.
         if bank_chunk:
-            return AlfaBankPosition(
-                has_bank_report=True,
-                source_report_title=bank_chunk.get("title"),
-                position_text=bank_chunk.get("text", ""),
-                is_official_view=True
-            )
+            return AlfaBankPosition(has_bank_report=False,source_report_title=None,
+                position_text='Переданный контекст не подтверждён индексом источников.',is_official_view=False)
 
-        # Автоматический поиск по локальной базе 9 отчетов Альфа-Банка
-        sector = company.mainokved_name if company else None
-        matches = bank_retriever.find_relevant_reports(news.title, news.body, sector_name=sector, top_k=1)
-        if matches:
-            top_report = matches[0]
-            return AlfaBankPosition(
-                has_bank_report=True,
-                source_report_title=f"{top_report.report_title} ({top_report.source_filename})",
-                position_text=f"{top_report.detailed_text}\nРекомендация банка: {top_report.official_recommendation}",
-                is_official_view=True
-            )
-
-        # Если отчет не найден, генерируем выжимку позиции через Qwen 3.6
-        prompt = build_rag_prompt(
-            {"title": news.title, "factual_essence": classification.factual_essence},
-            retrieved_chunks="Прямой аналитический отчет по данной узкой теме не найден в локальной базе."
-        )
-        raw_res = self._call_llm(PipelineTask.RAG, prompt["system"], prompt["user"])
-        return AlfaBankPosition(
-            has_bank_report=False,
-            source_report_title=None,
-            position_text="По экспертной оценке, событие требует внимания к управлению оборотными активами.",
-            is_official_view=False
-        )
+        from .rag.retriever import retrieve_bank_context
+        query = f"{news.title} {classification.factual_essence}"
+        chunks = retrieve_bank_context(query, company.model_dump() if company else None, top_k=2)
+        if not chunks:
+            return AlfaBankPosition(has_bank_report=False, source_report_title=None,
+                position_text="Прямой аналитический отчёт не найден.", is_official_view=False)
+        sources = [{"filename":c.filename,"page":c.page,"chunk_id":c.chunk_id,
+                    "score":c.score,"extraction_method":c.extraction_method,"checksum":c.checksum,"report_date":c.report_date,"confidence":c.confidence,"excerpt":c.text[:1200]} for c in chunks]
+        excerpts = "\n\n".join(f"[{c.chunk_id}] {c.filename}, страница {c.page}, дата {c.report_date or 'не установлена'}: {c.text[:1200]}" for c in chunks)
+        if self.has_live_api:
+            prompt = build_rag_prompt({"title":news.title,"factual_essence":classification.factual_essence},excerpts)
+            try:
+                from .schemas import RagSynthesis
+                parsed=RagSynthesis.model_validate_json(self._call_llm(PipelineTask.RAG,prompt['system'],prompt['user']))
+                data=parsed.model_dump()
+                if not parsed.citation_ids or not set(parsed.citation_ids).issubset({c.chunk_id for c in chunks}):raise ValueError('Missing or unknown citation ID')
+                if not parsed.has_matching_report:
+                    return AlfaBankPosition(has_bank_report=False,position_text='Прямой аналитический отчёт по событию не подтверждён.',is_official_view=False,retrieval_query=query)
+                text = data['bank_official_view']
+                if not isinstance(text,str) or not text.strip(): raise ValueError('Empty RAG response')
+                return AlfaBankPosition(synthesis_status="generated",has_bank_report=True,source_report_title=chunks[0].filename,
+                    position_text=text,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
+            except (ValueError,KeyError,TypeError,RuntimeError):
+                logger.warning('RAG synthesis unavailable or invalid; using source excerpts for audited analysis')
+        return AlfaBankPosition(synthesis_status="extracts_only",has_bank_report=True,source_report_title=chunks[0].filename,
+            position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
 
     def step_4_deep_insight(
         self,
@@ -182,15 +181,15 @@ class AgentOrchestrator:
                 target_role=role,
                 fact_summary=data["fact_summary"],
                 why_it_matters=data["why_it_matters"],
-                alfa_bank_position=AlfaBankPosition(**data["alfa_bank_position"]),
+                alfa_bank_position=bank_position,
                 risks=data.get("risks", []),
                 opportunities=data.get("opportunities", []),
                 next_best_action=NextBestAction(**data["next_best_action"]),
-                sources=data.get("sources", [news.source_name]),
+                sources=([news.source_url or news.source_name] + [x["filename"] for x in bank_position.sources]),
                 disclaimer="Не является индивидуальной инвестиционной рекомендацией"
             )
         except Exception:
-            return self._build_fallback_insight(company, news, bank_position, role)
+            raise ValueError("Модель не вернула валидный персонализированный инсайт")
 
     def step_5_fact_check_and_audit(
         self,
@@ -201,27 +200,24 @@ class AgentOrchestrator:
     ) -> ValidationReport:
         """Шаг 5 (GLM-5.3): Проверка фактологии, отсутствия галлюцинаций и наличия дисклеймера."""
         prompt = build_verification_prompt(
-            news_text=f"{news.title}\n{news.body}",
-            bank_context=bank_position.position_text,
-            company_context=f"{company.display_name}, ОКВЭД: {company.mainokved_name}, Кредиты: {company.cl_product_loa}",
+            news_text=f"Дата проверки: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).date().isoformat()}. Дата публикации: {news.published_at or 'не указана'}.\n{news.title}\n{news.body}",
+            bank_context=bank_position.model_dump_json(),
+            company_context="FTS_FLAG означает наличие данных внешней торговли; FTS_COUNTRY_NAME — известные страны ВЭД, но не направление и не валюта. Кредитный продукт не доказывает размер долга.\n"+company.model_dump_json(),
             insight_json=insight.model_dump_json(indent=2)
         )
-        raw_res = self._call_llm(PipelineTask.ORCHESTRATOR, prompt["system"], prompt["user"])
-        try:
-            data = json.loads(raw_res)
-            return ValidationReport(
-                is_valid=data.get("is_valid", True),
-                hallucination_detected=data.get("hallucination_detected", False),
-                notes=data.get("audit_comment", "Проверка пройдена успешно.")
-            )
-        except Exception:
-            # Детерминированная проверка ключевых условий
-            has_disclaimer = "Не является индивидуальной инвестиционной рекомендацией" in insight.disclaimer
-            return ValidationReport(
-                is_valid=has_disclaimer,
-                hallucination_detected=False,
-                notes="Автоматический аудит: структура и юридический дисклеймер подтверждены."
-            )
+        last_error = None
+        for task in (PipelineTask.ORCHESTRATOR, PipelineTask.CLASSIFICATION):
+            try:
+                raw_res = self._call_llm(task, prompt["system"], prompt["user"])
+                data = json.loads(raw_res)
+                if type(data.get('is_valid')) is not bool or type(data.get('hallucination_detected')) is not bool:
+                    raise ValueError('Audit verdict missing')
+                prefix = 'Резервный аудит Gemma: ' if task == PipelineTask.CLASSIFICATION else ''
+                return ValidationReport(is_valid=data['is_valid'],hallucination_detected=data['hallucination_detected'],notes=prefix+str(data.get('audit_comment','')))
+            except Exception as error:
+                last_error = type(error).__name__
+        return ValidationReport(is_valid=False,hallucination_detected=False,
+            notes=f'Аудит недоступен ({last_error}); публикация заблокирована.')
 
     def run_pipeline(
         self,

@@ -1,9 +1,11 @@
 from .data_loader import companies, persons, payments
+import pandas as pd
 
 
 def _value(row, column):
     value = row.get(column)
-    return None if value != value else value
+    if pd.isna(value):return None
+    return value.item() if hasattr(value,"item") else value
 
 
 def get_company_context(company_id: str) -> dict:
@@ -17,7 +19,10 @@ def get_company_context(company_id: str) -> dict:
     company = rows.iloc[0]
     group_id = _value(company, "GROUP_ID")
     group_rows = companies[companies["GROUP_ID"] == group_id] if group_id else rows
-    warnings = []
+    from .data_loader import DATA
+    warnings = list(DATA.warnings)
+    if __import__("os").getenv("DATASET_MODE") == "synthetic":
+        warnings.append("Синтетический тестовый профиль; не данные компании из кейса")
     if not _value(company, "REVENUE_COMPANY"):
         warnings.append("Выручка отсутствует или является технической заглушкой")
 
