@@ -200,7 +200,7 @@ class AgentOrchestrator:
     ) -> ValidationReport:
         """Шаг 5 (GLM-5.3): Проверка фактологии, отсутствия галлюцинаций и наличия дисклеймера."""
         prompt = build_verification_prompt(
-            news_text=f"Дата проверки: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).date().isoformat()}. Дата публикации: {news.published_at or 'не указана'}.\n{news.title}\n{news.body}",
+            news_text=f"ID новости: {news.news_id}. Источник: {news.source_name}. URL первоисточника: {news.source_url or 'не указан'}.\nДата проверки: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).date().isoformat()}. Дата публикации: {news.published_at or 'не указана'}.\n{news.title}\n{news.body}",
             bank_context=bank_position.model_dump_json(),
             company_context="FTS_FLAG означает наличие данных внешней торговли; FTS_COUNTRY_NAME — известные страны ВЭД, но не направление и не валюта. Кредитный продукт не доказывает размер долга.\n"+company.model_dump_json(),
             insight_json=insight.model_dump_json(indent=2)
