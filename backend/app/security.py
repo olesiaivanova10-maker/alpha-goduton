@@ -23,6 +23,11 @@ def identity(request):
     admin = request.headers.get("x-admin-key", "")
     if cfg.admin_key and hmac.compare_digest(admin, cfg.admin_key):
         return {"user": "admin", "companies": ["*"], "admin": True}
+    # The HTTPS proxy authenticates demo users with HTTP Basic Auth. Its separate
+    # credential grants access to demo companies, never administrative routes.
+    demo = request.headers.get("x-demo-proxy-key", "")
+    if cfg.env == "prod" and cfg.demo_proxy_key and hmac.compare_digest(demo, cfg.demo_proxy_key):
+        return {"user": "demo-proxy", "companies": ["*"], "admin": False}
     # Internal API credentials authenticate transport only. No company access without signed scope.
     stamp = request.headers.get("x-auth-timestamp", "")
     user = request.headers.get("x-auth-user", "")
