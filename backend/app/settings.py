@@ -14,6 +14,7 @@ class Settings:
     origins: tuple[str, ...]
     gateway_secret: str
     admin_key: str
+    demo_proxy_key: str
 
     def validate(self):
         if self.env not in {"dev", "test", "prod"}:
@@ -25,6 +26,8 @@ class Settings:
                 raise ValueError("Production requires Redis")
             if "*" in self.origins:
                 raise ValueError("Wildcard CORS forbidden in production")
+            if self.demo_proxy_key and len(self.demo_proxy_key) < 32:
+                raise ValueError("DEMO_PROXY_KEY must contain at least 32 characters")
         import json
 
         prices = json.loads(os.getenv("MODEL_PRICES_JSON", "{}"))
@@ -78,4 +81,5 @@ def settings():
         ),
         os.getenv("GATEWAY_SIGNING_SECRET", ""),
         os.getenv("ADMIN_API_KEY", ""),
+        os.getenv("DEMO_PROXY_KEY", ""),
     ).validate()
