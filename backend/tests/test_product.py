@@ -135,6 +135,28 @@ class ProductTests(unittest.TestCase):
             scope["query_string"] = b"company_id=B"
             self.assertIsNone(identity(Request(scope)))
 
+    def test_demo_proxy_key_never_grants_admin_access(self):
+        from app.security import identity
+        from app.main import app
+        from fastapi.testclient import TestClient
+        from starlette.requests import Request
+
+        demo_key = "demo-secret-with-at-least-32-characters"
+        scope = {
+            "type": "http", "method": "GET", "path": "/api/reports",
+            "query_string": b"", "headers": [(b"x-demo-proxy-key", demo_key.encode())],
+            "scheme": "https", "server": ("example.com", 443),
+        }
+        with patch.dict(os.environ, {
+            "APP_ENV": "prod", "DEMO_PROXY_KEY": demo_key,
+            "DATABASE_URL": "postgresql+psycopg://alpha:unused@localhost/alpha",
+            "REDIS_URL": "redis://localhost:6379/0",
+        }):
+            self.assertFalse(identity(Request(scope))["admin"])
+            client = TestClient(app)
+            response = client.get("/api/developer", headers={"X-Demo-Proxy-Key": demo_key})
+            self.assertEqual(response.status_code, 403)
+
     def test_untrusted_xml_and_source_allowlist(self):
         from app.news_ingestion import parse_rss, safe_fetch
         from defusedxml.common import DefusedXmlException
