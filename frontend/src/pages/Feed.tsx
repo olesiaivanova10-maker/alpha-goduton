@@ -103,14 +103,14 @@ export default function Feed() {
   return (
     <>
       <h1>Новостная аналитика</h1>
-      <button disabled={busy} onClick={() => generateLive()}>{busy ? 'Идёт анализ…' : 'Сформировать живую ленту'}</button>
+      <button className="btn-primary" disabled={busy} onClick={() => generateLive()}>{busy ? 'Идёт анализ…' : 'Сформировать живую ленту'}</button>
       <details className="card">
         <summary>Проверить новую новость</summary>
         <p className="muted">Вставьте ранее не показанную новость. Это пользовательский текст, а не подтверждённый первоисточник. Анализ проходит те же этапы отбора и аудита; публикация не гарантирована.</p>
         <label>Заголовок<br/><input style={{width:'100%'}} maxLength={1000} value={newsTitle} onChange={e => setNewsTitle(e.target.value)} /></label>
         <label>Ссылка на первоисточник (необязательно)<br/><input type="url" style={{width:'100%'}} maxLength={2000} value={newsUrl} onChange={e => setNewsUrl(e.target.value)} /></label>
         <label>Текст<br/><textarea style={{width:'100%',minHeight:120}} maxLength={30000} value={newsBody} onChange={e => setNewsBody(e.target.value)} /></label>
-        <button disabled={busy || !newsTitle.trim() || !newsBody.trim()} onClick={() => generateLive(true)}>Проанализировать для выбранной компании</button>
+        <button className="btn-primary" disabled={busy || !newsTitle.trim() || !newsBody.trim()} onClick={() => generateLive(true)}>Проанализировать для выбранной компании</button>
       </details>
       {generation && <p className="muted">{generation}</p>}
       {feed.total_events === 0 && <p className="muted">Проверенных инсайтов пока нет. Запустите анализ свежих новостей.</p>}

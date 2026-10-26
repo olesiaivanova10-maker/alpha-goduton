@@ -9,6 +9,8 @@ import Feedback from '../components/Feedback';
 export default function InsightPage() {
   const { id } = useParams();
   const [card, setCard] = useState<EventCard | null | undefined>(undefined);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/cards/${encodeURIComponent(id || '')}`).then(r => {if (!r.ok) throw new Error(); return r.json();}).then(setCard).catch(() => setCard(null));
@@ -18,6 +20,23 @@ export default function InsightPage() {
   if (card === null) return <p className="muted">Событие не найдено. <Link to="/news">К ленте</Link></p>;
 
   const q = card.six_questions;
+  const sources = q.q6_basis_of_conclusion.sources;
+
+  const sourceIndex = (filename?: string, title?: string | null) => {
+    let i = sources.findIndex((s) => !!filename && s.url_or_file === filename);
+    if (i < 0 && title) i = sources.findIndex((s) => s.name === title);
+    return i;
+  };
+
+  const jumpToSource = (i: number) => {
+    if (i < 0) return;
+    setSourcesOpen(true);
+    setFlash(`src-${i}`);
+    setTimeout(() => {
+      document.getElementById(`src-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    setTimeout(() => setFlash(null), 2500);
+  };
 
   return (
     <>
@@ -58,10 +77,39 @@ export default function InsightPage() {
         <OriginBadge origin={q.q3_bank_evaluation.origin} />
         {q.q3_bank_evaluation.has_report ? (
           <>
-            {q.q3_bank_evaluation.report_title && <h4>{q.q3_bank_evaluation.report_title}</h4>}
+            {q.q3_bank_evaluation.report_title && (
+              <h4>
+                <a
+                  href="#sources"
+                  className="src-link"
+                  onClick={(ev) => {
+                    ev.preventDefault();
+                    jumpToSource(
+                      sourceIndex(
+                        q.q3_bank_evaluation.bank_excerpts?.[0]?.filename,
+                        q.q3_bank_evaluation.report_title,
+                      ),
+                    );
+                  }}
+                >
+                  {q.q3_bank_evaluation.report_title}
+                </a>
+              </h4>
+            )}
             {(q.q3_bank_evaluation.bank_excerpts ?? []).map((e, i) => (
               <div key={i}>
-                <b>Материал Альфа-Банка · {e.filename}, стр. {e.page}</b>
+                <b>
+                  <a
+                    href="#sources"
+                    className="src-link"
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      jumpToSource(sourceIndex(e.filename));
+                    }}
+                  >
+                    Материал Альфа-Банка · {e.filename}, стр. {e.page}
+                  </a>
+                </b>
                 <p className="muted small">Дата отчёта: {e.report_date || 'не установлена'}. {e.extraction_method === 'ocr' ? 'Текст распознан: цифры следует сверять с PDF.' : 'Текст извлечён из PDF.'} Исторический материал не является новой рекомендацией.</p>
                 <blockquote>{e.text}</blockquote>
                 <a href={`/api/reports/files/${encodeURIComponent(e.filename)}#page=${e.page}`} target="_blank" rel="noreferrer">Открыть страницу первоисточника</a>
@@ -76,12 +124,19 @@ export default function InsightPage() {
       </section>
 
       <section className="card">
-        <details>
+        <details
+          open={sourcesOpen}
+          onToggle={(ev) => setSourcesOpen((ev.currentTarget as HTMLDetailsElement).open)}
+        >
           <summary><b>{q.q6_basis_of_conclusion.question}</b></summary>
           <h4>Источники</h4>
           <ul>
-            {q.q6_basis_of_conclusion.sources.map((s) => (
-              <li key={s.name + s.url_or_file}>
+            {sources.map((s, i) => (
+              <li
+                key={s.name + s.url_or_file}
+                id={`src-${i}`}
+                className={flash === `src-${i}` ? 'src-flash' : undefined}
+              >
                 {s.url_or_file?.startsWith('http') ? (
                   <a href={s.url_or_file} target="_blank" rel="noreferrer">{s.name}</a>
                 ) : (
