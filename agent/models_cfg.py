@@ -93,7 +93,7 @@ TASK_MODEL_MAPPING: Dict[PipelineTask, ModelTaskConfig] = {
         model=ModelName.DEEPSEEK_V4_1,
         provider_options={"reasoning":{"effort":"low"}},
         temperature=0.3,
-        max_tokens=3000,
+        max_tokens=6000,
         supports_structured_output=True,
         why=(
             "- DeepSeek сильнее в математических и финансовых рассуждениях, чем GLM\n"

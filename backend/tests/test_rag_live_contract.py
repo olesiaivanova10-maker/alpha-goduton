@@ -38,3 +38,17 @@ class RagLiveContractTests(unittest.TestCase):
         self.assertIn('Gemma',audit.notes)
         with patch.object(agent,'_call_llm',side_effect=[TimeoutError(),ValueError()]):
             self.assertFalse(agent.step_5_fact_check_and_audit(company,news,bank,insight).is_valid)
+
+    def test_audit_receives_news_source_url_to_check_real_citations(self):
+        from agent.schemas import CompanyProfile, PersonalizedInsight, AlfaBankPosition, NextBestAction, UserRole
+        agent=AgentOrchestrator()
+        news=NewsItem(news_id='source-N',title='Ставка',body='Факт',source_name='Издатель',source_url='https://www.kommersant.ru/doc/9049591')
+        company=CompanyProfile(synthetic_u='U1',mainokved_code='64',mainokved_name='Лизинг',revenue_company=100)
+        bank=AlfaBankPosition(has_bank_report=False,position_text='Нет отчёта',is_official_view=False)
+        insight=PersonalizedInsight(news_id=news.news_id,company_id='U1',target_role=UserRole.CFO,fact_summary='Факт',why_it_matters='Условное влияние',alfa_bank_position=bank,next_best_action=NextBestAction(action_type='CONSULTATION',title='Уточнить',description='Уточнить данные'))
+        with patch.object(agent,'_call_llm',return_value='{"is_valid":true,"hallucination_detected":false,"audit_comment":"Проверено"}') as model:
+            result=agent.step_5_fact_check_and_audit(company,news,bank,insight)
+        self.assertTrue(result.is_valid)
+        self.assertIn(news.source_url,model.call_args.args[2])
+        self.assertIn(news.source_name,model.call_args.args[2])
+        self.assertIn(news.news_id,model.call_args.args[2])
