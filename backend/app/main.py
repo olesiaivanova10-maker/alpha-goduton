@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
+from datetime import datetime
 
 # Обеспечиваем доступ к agent и app
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -55,6 +56,8 @@ class AnalyzeRequest(BaseModel):
     news_body: str = Field(min_length=1,max_length=30000)
     news_id: Optional[str] = Field(default=None,max_length=512)
     source_name: Optional[str] = Field(default="СМИ",max_length=256)
+    source_url: Optional[HttpUrl] = None
+    published_at: Optional[datetime] = None
     role: Optional[UserRole] = UserRole.CFO
 
 
@@ -139,7 +142,8 @@ def refresh_personal_feed(company_id: str, background: BackgroundTasks, role: Us
     NEWS_CACHE,_=load_news()
     business=[n for n in NEWS_CACHE if __import__('re').search(r'\b(?:ставк|кредит|инфляц|нефт|топлив|лизинг|налог|экспорт|импорт|сырь|производств|логист|банкрот)',n.title.lower())]
     candidates=sort_news(business,context,max(1,min(limit,3)))
-    if not candidates: raise HTTPException(status_code=409,detail="Сначала загрузите новости")
+    if not candidates:
+        return _enqueue('analyze', {'company_id':company_id, 'role':role.value, 'records':[], 'refresh_sources':True, 'limit':max(1,min(limit,3))}, company_id)
     return _enqueue('analyze',{'company_id':company_id,'role':role.value,'records':candidates},company_id)
 
 @app.get("/api/feed/jobs/{job_id}")
@@ -147,6 +151,13 @@ def feed_job(job_id: str):
     from .live_feed import job
     result=job(job_id)
     if not result: raise HTTPException(status_code=404,detail="Задача не найдена")
+    return result
+
+@app.get("/api/cards/{card_id}")
+def get_saved_card(card_id: str):
+    from .live_feed import card
+    result=card(card_id)
+    if not result: raise HTTPException(status_code=404,detail="Карточка не найдена")
     return result
 
 @app.post("/chat", response_model=FeedChatResponse)
@@ -183,7 +194,7 @@ def analyze_news_for_company(req: AnalyzeRequest):
     try:get_company_context(req.company_id)
     except ValueError:raise HTTPException(status_code=404,detail='Компания не найдена') from None
     if not orchestrator.has_live_api:raise HTTPException(status_code=503,detail='Live API не настроен')
-    record={'news_id':'manual-'+__import__('hashlib').sha256((req.company_id+'|'+str(req.news_id)+'|'+req.news_title+'|'+req.news_body).encode()).hexdigest(),'title':req.news_title,'body':req.news_body,'source_name':req.source_name or 'Предоставленная новость','source_url':'','published_at':None}
+    record={'news_id':'manual-'+__import__('hashlib').sha256((req.company_id+'|'+str(req.news_id)+'|'+req.news_title+'|'+req.news_body).encode()).hexdigest(),'title':req.news_title,'body':req.news_body,'source_name':req.source_name or 'Предоставленная новость','source_url':str(req.source_url) if req.source_url else '', 'published_at':req.published_at.isoformat() if req.published_at else None}
     return _enqueue('analyze',{'company_id':req.company_id,'role':(req.role or UserRole.CFO).value,'records':[record]},req.company_id)
 
 
@@ -239,7 +250,7 @@ def _enqueue(kind,payload,company=None):
 @app.get("/api/reports/files/{filename}")
 def report_file(filename: str):
     from fastapi.responses import FileResponse
-    root=Path(__file__).resolve().parents[2]/'data_alfbnk'
+    root=Path(__import__('os').getenv('PDF_DIR',str(Path(__file__).resolve().parents[2]/'data_alfbnk')))
     path=(root/filename).resolve()
     if path.parent != root.resolve() or path.suffix.lower() != '.pdf' or not path.is_file():
         raise HTTPException(status_code=404,detail="PDF не найден")

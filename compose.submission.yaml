@@ -1,0 +1,71 @@
+name: alpha-submission
+x-app: &app
+  image: alpha-submission-app:local
+  build: {context: ., dockerfile: backend/Dockerfile}
+  env_file:
+    - path: .env.submission
+      required: false
+  environment: &env
+    APP_ENV: dev
+    REQUIRE_AUTH: 'false'
+    DATASET_MODE: synthetic
+    DATA_DIR: /app/fixtures
+    PAYMENTS_FILE: df_Uid_payment_hack.csv
+    DATABASE_URL: sqlite:////app/storage/submission.db
+    REDIS_URL: redis://redis:6379/0
+    PDF_DIR: /data/pdf
+    RAG_MODE: lexical
+    ALLOW_SYNTHETIC_FALLBACK: '0'
+  volumes:
+    - synthetic_csv:/app/fixtures
+    - submission_storage:/app/storage
+    - ./data_alfbnk:/data/pdf:ro
+  init: true
+services:
+  prepare:
+    <<: *app
+    environment:
+      <<: *env
+      ALLOW_SYNTHETIC_FALLBACK: '1'
+    command: [python, scripts/submission_init.py]
+  redis:
+    image: redis:7.4.1-alpine@sha256:c1e88455c85225310bbea54816e9c3f4b5295815e6dbf80c34d40afc6df28275
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [submission_redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  backend:
+    <<: *app
+    ports: ['127.0.0.1:28081:8000']
+    depends_on:
+      prepare: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+  worker:
+    <<: *app
+    command: [python, -m, backend.app.worker]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -m, backend.app.worker_health]
+      interval: 20s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+  frontend:
+    build: {context: ., dockerfile: frontend/Dockerfile.product}
+    ports: ['127.0.0.1:28080:80']
+    depends_on:
+      backend: {condition: service_healthy}
+volumes:
+  synthetic_csv:
+  submission_storage:
+  submission_redis:

@@ -52,3 +52,16 @@ class LiveFeedTests(unittest.TestCase):
             failed=news_journal.listing('U_14366','CFO')['items'][0]
             self.assertEqual(failed['status'],'error')
             self.assertNotIn('private-key-do-not-log',failed['reason'])
+
+    def test_irrelevant_news_completes_without_false_publication(self):
+        from app.agent_service import AgentService
+        record={'news_id':'NOISE','title':'Погода','body':'Тест','source_name':'Тест','source_url':''}
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'INSIGHT_DB_PATH':tmp+'/db.sqlite'}):
+            agent=FakeAgent()
+            with patch.object(agent,'step_1_classify',return_value=NewsClassification(is_relevant_business_event=False,category='ДРУГОЕ',factual_essence='Погода')):
+                live_feed.generate('normal-filter','U_26030','CFO',[record],AgentService(agent))
+            result=live_feed.job('normal-filter')
+            self.assertEqual(result['status'],'completed')
+            self.assertEqual(result['detail']['published'],0)
+            self.assertEqual(result['detail']['failures'],[])
+            self.assertEqual(live_feed.events('U_26030','CFO'),[])

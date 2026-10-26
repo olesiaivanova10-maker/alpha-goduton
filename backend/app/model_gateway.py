@@ -88,6 +88,7 @@ def call(client, task, model_cfg, system_prompt, user_prompt, timeout):
                             {"role": "user", "content": user_prompt},
                         ],
                         timeout=timeout,
+                        extra_body=getattr(model_cfg,"provider_options",None) or None,
                         response_format={"type": "json_object"}
                         if model_cfg.supports_structured_output
                         else None,

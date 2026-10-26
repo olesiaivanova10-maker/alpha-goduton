@@ -1,0 +1,98 @@
+{
+  "rss": {
+    "job_id": "487c1e9bf9094b0187736234a56afc8c",
+    "status": "completed",
+    "detail": {
+      "items_count": 613,
+      "sources": {
+        "loaded": [
+          "ТАСС",
+          "РИА Новости",
+          "Интерфакс",
+          "Коммерсантъ",
+          "Банк России"
+        ],
+        "failed": [],
+        "counts": {
+          "ТАСС": 99,
+          "РИА Новости": 98,
+          "Интерфакс": 25,
+          "Коммерсантъ": 294,
+          "Банк России": 100
+        }
+      }
+    },
+    "company_id": null,
+    "kind": "rss",
+    "payload": {}
+  },
+  "article": {
+    "news_id": "706c0c92040839c71139c769379d5adc",
+    "title": "Премии на российскую нефть ESPO в Китае снизились до $20 за баррель",
+    "source_name": "Коммерсантъ",
+    "source_url": "https://www.kommersant.ru/doc/9060352"
+  },
+  "companies": [
+    {
+      "company_id": "U_14366",
+      "job": {
+        "job_id": "546ab187dcfd4fad8c1708ced90e719a",
+        "status": "completed",
+        "detail": {
+          "published": 0,
+          "failures": []
+        },
+        "company_id": "U_14366",
+        "kind": "analyze",
+        "payload": {
+          "company_id": "U_14366",
+          "role": "CFO",
+          "records": [
+            {
+              "news_id": "manual-121205a30d8de00bc1aba43ec8890a2c58c76df2514c756ed4f24cc9c98586f5",
+              "title": "Премии на российскую нефть ESPO в Китае снизились до $20 за баррель",
+              "body": "Премия на российскую нефть ESPO (ВСТО) с поставкой в китайскую провинцию Шаньдун за месяц к 23 октября снизилась на $10, до $20 за баррель, к цене Brent на бирже Ice, приводит S&P Global данные источников на рынке. Снижение премии аналитики связывают с улучшением ситуации с поставками нефти на мировом рынке.",
+              "source_name": "Коммерсантъ",
+              "source_url": "https://www.kommersant.ru/doc/9060352",
+              "published_at": "2026-10-26T05:31:43+00:00"
+            }
+          ]
+        }
+      },
+      "events": []
+    },
+    {
+      "company_id": "U_26030",
+      "job": {
+        "job_id": "3691f616b69e44a0b4a5bd5027a00c28",
+        "status": "failed",
+        "detail": {
+          "published": 0,
+          "failures": [
+            {
+              "news_id": "manual-2f580b2ee2c4d1d7264c75cd792618e2e5669072e498660ea321bd8df841823a",
+              "reason": "ModelGatewayError"
+            }
+          ]
+        },
+        "company_id": "U_26030",
+        "kind": "analyze",
+        "payload": {
+          "company_id": "U_26030",
+          "role": "CFO",
+          "records": [
+            {
+              "news_id": "manual-2f580b2ee2c4d1d7264c75cd792618e2e5669072e498660ea321bd8df841823a",
+              "title": "Премии на российскую нефть ESPO в Китае снизились до $20 за баррель",
+              "body": "Премия на российскую нефть ESPO (ВСТО) с поставкой в китайскую провинцию Шаньдун за месяц к 23 октября снизилась на $10, до $20 за баррель, к цене Brent на бирже Ice, приводит S&P Global данные источников на рынке. Снижение премии аналитики связывают с улучшением ситуации с поставками нефти на мировом рынке.",
+              "source_name": "Коммерсантъ",
+              "source_url": "https://www.kommersant.ru/doc/9060352",
+              "published_at": "2026-10-26T05:31:43+00:00"
+            }
+          ]
+        }
+      },
+      "events": []
+    }
+  ]
+}

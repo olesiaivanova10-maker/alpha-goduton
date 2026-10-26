@@ -1,0 +1,36 @@
+{
+  "models": [
+    {
+      "model_id": "deepseek/deepseek-v4.1-flash",
+      "calls": 2,
+      "known_input_tokens": 3184,
+      "known_output_tokens": 3567,
+      "errors": 0
+    },
+    {
+      "model_id": "google/gemma-4-26b-a4b-it",
+      "calls": 18,
+      "known_input_tokens": 10925,
+      "known_output_tokens": 1711,
+      "errors": 0
+    },
+    {
+      "model_id": "qwen/qwen3.6-35b-a3b",
+      "calls": 6,
+      "known_input_tokens": 5766,
+      "known_output_tokens": 3296,
+      "errors": 2
+    },
+    {
+      "model_id": "z-ai/glm-5.3-flash",
+      "calls": 2,
+      "known_input_tokens": 7448,
+      "known_output_tokens": 681,
+      "errors": 0
+    }
+  ],
+  "reserved_output_tokens": 200000,
+  "local_reservation_limit": 200000,
+  "cost": null,
+  "warning": "Unknown provider tariffs and missing usage on timed-out attempts; this is not the balance of the shared 500 RUB account."
+}

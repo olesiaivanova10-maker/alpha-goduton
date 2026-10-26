@@ -30,7 +30,7 @@ export default function ChatPanel({ card }: { card: EventCard }) {
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'user', text: question }]);
     setLoading(true);
     try {
-      const res = await askQuestion({ card_id: card.card_id, question }, card);
+      const res = await askQuestion({ card_id: card.card_id, question });
       setMessages((m) => [
         ...m,
         { id: crypto.randomUUID(), role: 'assistant', text: res.answer, origin: res.origin, sources: res.sources },

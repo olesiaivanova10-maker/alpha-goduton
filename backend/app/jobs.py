@@ -89,6 +89,21 @@ def execute(job_id):
             jt = job_context.set(job_id)
             rt = request_context.set(job_id)
             try:
+                if payload.get("refresh_sources") and not payload["records"]:
+                    from .news_ingestion import collect_sources, sort_news
+                    from .news_store import save_news
+                    from .company_context import get_company_context
+                    import re
+                    repo.put_job(job_id, "running", {"stage": "Загружаем RSS-источники", "published": 0})
+                    rows, source_status = collect_sources()
+                    save_news(rows, source_status)
+                    candidates = [n for n in rows if re.search(r"\b(?:ставк|кредит|инфляц|нефт|топлив|лизинг|налог|экспорт|импорт|сырь|производств|логист|банкрот)", n.title.lower())]
+                    payload["records"] = sort_news(candidates, get_company_context(payload["company_id"]), payload["limit"])
+                    if not payload["records"]:
+                        raise RuntimeError("No business news available from sources")
+                    # Retrying this task uses the same snapshot rather than a different article.
+                    with transaction() as s:
+                        s.get(Job, job_id).payload = payload
                 generate(
                     job_id,
                     payload["company_id"],

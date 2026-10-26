@@ -204,6 +204,7 @@ def generate(job_id, company_id, role, records, service):
                     "url_or_file": news.source_url,
                 }
             ]
+            sources += [{"type": "NEWS", "name": d["source_name"], "url_or_file": d["source_url"]} for d in record.get("duplicate_sources", [])]
             sources += [
                 {
                     "type": "ALFA_RESEARCH",
@@ -233,6 +234,7 @@ def generate(job_id, company_id, role, records, service):
                     if bank.sources
                     else None,
                     "text": bank.position_text,
+                    "bank_excerpts": [{"text": s["excerpt"], "filename": s["filename"], "page": s["page"], "report_date": s.get("report_date"), "extraction_method": s.get("extraction_method", "text")} for s in bank.sources if s.get("excerpt")],
                 },
                 "q4_consequences": {
                     "question": "Какие последствия возможны?",
@@ -329,6 +331,6 @@ def generate(job_id, company_id, role, records, service):
             )
     set_job(
         job_id,
-        "completed" if published else "failed",
+        "completed" if published or not failures else "failed",
         {"published": published, "failures": failures},
     )

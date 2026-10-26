@@ -26,6 +26,9 @@ class CompanyProfile(BaseModel):
     city: Optional[str] = None
     region: Optional[str] = None
     
+    relationship_summary: dict = Field(default_factory=dict)
+    data_warnings: List[str] = Field(default_factory=list)
+
     # Банковские продукты
     cl_product_rko: bool = Field(default=True, description="Наличие РКО")
     cl_product_gar: bool = Field(default=False, description="Банковские гарантии")
@@ -36,7 +39,7 @@ class CompanyProfile(BaseModel):
     factoring_mark: bool = Field(default=False, description="Факторинг")
     
     # ВЭД
-    fts_flag: bool = Field(default=False, description="Участие во внешнеэкономической деятельности")
+    fts_flag: bool = Field(default=False, description="Наличие данных ФТС; не доказывает направление, валюту или текущую активность")
     fts_country_name: Optional[str] = Field(None, description="Страны ВЭД (Китай, Индия, ОАЭ и т.д.)")
 
 

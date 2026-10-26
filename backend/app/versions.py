@@ -58,6 +58,7 @@ def analysis_version(company):
                 for k, v in TASK_MODEL_MAPPING.items()
             },
             "corpus": corpus_version(),
-            "pipeline": "2",
+            "pipeline": "submission-3",
+            "retriever": hashlib.sha256((Path(__file__).resolve().parents[2]/"agent/rag/retriever.py").read_bytes()).hexdigest(),
         }
     )

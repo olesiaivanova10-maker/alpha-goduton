@@ -24,12 +24,25 @@ def adapt_backend_context_to_profile(ctx: Dict[str, Any]) -> CompanyProfile:
         except (ValueError, TypeError):
             revenue = 0.0
 
+    import math
+    if not math.isfinite(revenue):
+        revenue = 0.0
+
     return CompanyProfile(
         synthetic_u=str(ctx.get("company_id", "UNKNOWN")),
         display_name=f"{org.get('type') or 'Компания'} {ctx.get('company_id')}",
         mainokved_code=str(industry.get("okved_code") or "00.00"),
         mainokved_name=str(industry.get("name") or "Не указана"),
         revenue_company=revenue,
+        relationship_summary={
+            "group_company_count": len(ctx.get("group_companies") or []),
+            "related_person_count": len(ctx.get("related_persons") or []),
+            "incoming_total": sum(float(p.get("payment_amount") or 0) for p in ctx.get("counterparties", []) if p.get("direction") == "incoming"),
+            "outgoing_total": sum(float(p.get("payment_amount") or 0) for p in ctx.get("counterparties", []) if p.get("direction") == "outgoing"),
+            "counterparty_count": len({p["company_id"] for p in ctx.get("counterparties", [])}),
+            "limitations": "Период платежей не указан. Направление перевода не доказывает роль покупателя/поставщика, обязательства и качество контрагента. Связь через ФЛ не доказывает владение.",
+        },
+        data_warnings=ctx.get("warnings", []),
         org_type=org.get("type"),
         group_id=ctx.get("group_id"),
         city=location.get("city"),

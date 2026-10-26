@@ -16,7 +16,7 @@ def answer(orchestrator, card_id, question):
         question + " " + card["title"], top_k=3, filenames=files
     )
     context = "\n".join(f"{c.filename}, страница {c.page}: {c.text}" for c in chunks)
-    if orchestrator.has_live_api and context:
+    if orchestrator.has_live_api:
         try:
             text = orchestrator._call_llm(
                 PipelineTask.INTERACTIVE_CHAT,
@@ -26,7 +26,8 @@ def answer(orchestrator, card_id, question):
                         "question": question,
                         "context": context,
                         "company_features": event["client_features"],
-                        "insight": event["six_questions"]["q2_why_matters"],
+                        "audited_card": event["six_questions"],
+                        "limitations": "Карточка — прежний вывод ИИ, не независимый первоисточник. Нельзя придумывать остаток долга, условия договора или динамику прошлых кварталов. Если PDF-контекст пуст, не утверждай, что ответ подтвержден отчётом банка.",
                     },
                     ensure_ascii=False,
                 ),
@@ -35,7 +36,7 @@ def answer(orchestrator, card_id, question):
                 return {
                     "answer": text,
                     "origin": "ВЫВОД ИИ",
-                    "sources": [
+                    "sources": [s for s in sources if s["type"] != "ALFA_RESEARCH"] + [
                         {
                             "type": "ALFA_RESEARCH",
                             "name": c.filename,

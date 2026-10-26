@@ -11,7 +11,7 @@ class RagLiveContractTests(unittest.TestCase):
         news=NewsItem(news_id='test',title='Ставка',body='Ставка сохранена')
         classification=NewsClassification(is_relevant_business_event=True, category='macro',factual_essence='Ставка')
         chunk=RagChunk('c1','report.pdf',2,'Подтверждённый фрагмент',.8,'ocr')
-        with patch('agent.rag.retriever.retrieve_bank_context',return_value=[chunk]),patch.object(agent,'_call_llm',return_value='{"has_matching_report":true,"bank_official_view":"Позиция из фрагмента"}') as model:
+        with patch('agent.rag.retriever.retrieve_bank_context',return_value=[chunk]),patch.object(agent,'_call_llm',return_value='{"has_matching_report":true,"bank_official_view":"Позиция из фрагмента","citation_ids":["c1"]}') as model:
             result=agent.step_3_rag_bank_context(news,classification)
         self.assertEqual(result.position_text,'Позиция из фрагмента')
         self.assertEqual(result.sources[0]['page'],2)

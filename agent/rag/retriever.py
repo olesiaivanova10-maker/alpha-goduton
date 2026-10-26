@@ -58,14 +58,63 @@ def retrieve_bank_context(query: str, company: dict | None = None, top_k: int = 
         profile=' '.join(str(v) for v in (company or {}).values())
         return [RagChunk(**{k:v for k,v in c.items() if k in fields}) for c in retrieve(query+' '+profile,filenames=filenames,top_k=top_k)]
     if not _INDEXED: index_pdf_directory(os.getenv('PDF_DIR','data_alfbnk'))
-    profile=" ".join(str(v) for v in (company or {}).values()).lower()
-    words=set(re.findall(r"[а-яa-z0-9]{4,}", f"{query} {profile}".lower())); ranked=[]
-    for chunk in _INDEX:
-        if filenames is not None and chunk.filename not in filenames:
+    # Public research cannot establish an individual customer's private contracts.
+    if private_company_question(query):
+        return []
+    words = tokens(query)
+    if not words:
+        return []
+    eligible = [c for c in _INDEX if (filenames is None or c.filename in filenames)
+                and c.confidence >= .65 and (not c.report_date or c.report_date <= date.today().isoformat())]
+    if not eligible:
+        return []
+    from collections import Counter
+    import math
+    documents = [tokens(c.text) for c in eligible]
+    df = Counter(t for doc in documents for t in set(doc))
+    average = sum(map(len, documents)) / len(documents) or 1
+    ranked = []
+    query_terms = set(words)
+    for chunk, doc in zip(eligible, documents):
+        counts = Counter(doc)
+        matched = query_terms & counts.keys()
+        # Company metadata may guide generation, but must not manufacture a retrieval match.
+        if len(matched) < min(2, len(query_terms)):
             continue
-        if chunk.confidence<.65:continue
-        if chunk.report_date and chunk.report_date>date.today().isoformat():continue
-        tokens=set(re.findall(r"[а-яa-z0-9]{4,}", chunk.text.lower())); overlap=len(words & tokens); score=overlap/max(len(words),1)
-        if score>=float(os.getenv("RAG_LEXICAL_THRESHOLD","0.1")): ranked.append((score,chunk))
-    ranked.sort(key=lambda item:item[0], reverse=True)
-    return [replace(chunk,score=round(score,4)) for score,chunk in ranked[:top_k]]
+        score = sum(math.log(1 + (len(documents)-df[t]+.5)/(df[t]+.5)) *
+                    counts[t]*2.2/(counts[t]+1.2*(.25+.75*len(doc)/average)) for t in matched)
+        coverage = len(matched)/len(query_terms)
+        if coverage < float(os.getenv("RAG_LEXICAL_THRESHOLD", "0.15")):
+            continue
+        ranked.append((score * coverage, chunk))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    # Different fragments on one page should not crowd out other primary sources.
+    seen = set(); result = []
+    for score, chunk in ranked:
+        key = (chunk.filename, chunk.page)
+        if key not in seen:
+            result.append(replace(chunk, score=round(score, 4))); seen.add(key)
+        if len(result) >= top_k:
+            break
+    return result
+
+
+_STOP = set("почему какой какая какие как что это при для после перед между или без над под про его уже было будет были этой этого этом компании компания аналитики аналитиков отчет отчёт году года год квартале квартала квартал ждать ожидают ждут изменился изменится прогноз роста размер индивидуальный график пожалуйста согласно показать расскажи подробнее".split())
+
+
+def tokens(text):
+    return _stems(tuple(w for w in re.findall(r"[а-яёa-z0-9]+", text.lower()) if len(w) >= 3 and w not in _STOP and not w.isdigit()))
+
+
+from functools import lru_cache
+@lru_cache(maxsize=8192)
+def _stems(words):
+    import snowballstemmer
+    # Related noun/adjective forms that Snowball deliberately leaves separate.
+    # This expands topic matching, never establishes a factual claim.
+    aliases = {"потребительск": "потреблен", "инфляцион": "инфляц", "кредитован": "кредит"}
+    return [aliases.get(t, t) for t in snowballstemmer.stemmer("russian").stemWords(list(words))]
+
+
+def private_company_question(query):
+    return bool(re.search(r"\bU_\w+", query, re.I) and re.search(r"задолженн|график.{0,30}платеж|остаток.{0,20}(долг|кредит)|ковенант|номер.{0,20}договор", query, re.I))

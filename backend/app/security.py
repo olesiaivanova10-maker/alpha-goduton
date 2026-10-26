@@ -104,6 +104,8 @@ def install(app):
                     index = parts.index("companies")
                     company = parts[index + 1] if len(parts) > index + 1 else None
                 card_id = body.get("card_id") or body.get("insight_id")
+                if request.url.path.startswith("/api/cards/"):
+                    card_id = parts[-1]
                 if card_id:
                     event = repo.insight(card_id)
                     if event:

@@ -136,7 +136,7 @@ class AgentOrchestrator:
             return AlfaBankPosition(has_bank_report=False, source_report_title=None,
                 position_text="Прямой аналитический отчёт не найден.", is_official_view=False)
         sources = [{"filename":c.filename,"page":c.page,"chunk_id":c.chunk_id,
-                    "score":c.score,"extraction_method":c.extraction_method,"checksum":c.checksum,"report_date":c.report_date,"confidence":c.confidence} for c in chunks]
+                    "score":c.score,"extraction_method":c.extraction_method,"checksum":c.checksum,"report_date":c.report_date,"confidence":c.confidence,"excerpt":c.text[:1200]} for c in chunks]
         excerpts = "\n\n".join(f"[{c.chunk_id}] {c.filename}, страница {c.page}, дата {c.report_date or 'не установлена'}: {c.text[:1200]}" for c in chunks)
         if self.has_live_api:
             prompt = build_rag_prompt({"title":news.title,"factual_essence":classification.factual_essence},excerpts)
@@ -144,13 +144,15 @@ class AgentOrchestrator:
                 from .schemas import RagSynthesis
                 parsed=RagSynthesis.model_validate_json(self._call_llm(PipelineTask.RAG,prompt['system'],prompt['user']))
                 data=parsed.model_dump()
-                if not set(parsed.citation_ids).issubset({c.chunk_id for c in chunks}):raise ValueError('Unknown citation ID')
+                if not parsed.citation_ids or not set(parsed.citation_ids).issubset({c.chunk_id for c in chunks}):raise ValueError('Missing or unknown citation ID')
+                if not parsed.has_matching_report:
+                    return AlfaBankPosition(has_bank_report=False,position_text='Прямой аналитический отчёт по событию не подтверждён.',is_official_view=False,retrieval_query=query)
                 text = data['bank_official_view']
                 if not isinstance(text,str) or not text.strip(): raise ValueError('Empty RAG response')
                 return AlfaBankPosition(synthesis_status="generated",has_bank_report=True,source_report_title=chunks[0].filename,
                     position_text=text,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
-            except (ValueError,KeyError,TypeError):
-                logger.warning('Invalid RAG synthesis JSON; returning excerpts')
+            except (ValueError,KeyError,TypeError,RuntimeError):
+                logger.warning('RAG synthesis unavailable or invalid; using source excerpts for audited analysis')
         return AlfaBankPosition(synthesis_status="extracts_only",has_bank_report=True,source_report_title=chunks[0].filename,
             position_text=excerpts,is_official_view=False,sources=sources,retrieval_query=query,evidence_text=excerpts)
 
